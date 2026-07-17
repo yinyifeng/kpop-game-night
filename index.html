@@ -261,7 +261,7 @@
   .setup .note{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
   .setup .note code{background:var(--panel-2);padding:2px 7px;border-radius:6px;color:var(--cyber);font-size:12px}
   .setup-round{border:1px solid var(--line);border-radius:16px;margin-bottom:14px;overflow:hidden}
-  .setup-round summary{padding:15px 18px;cursor:pointer;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;list-style:none}
+  .setup-round summary{padding:15px 18px;cursor:pointer;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;list-style:none;flex-wrap:wrap}
   .setup-round summary::-webkit-details-marker{display:none}
   .setup-round summary .emo{font-size:18px}
   .setup-round summary .cnt{font-size:12px;color:var(--muted);font-weight:600}
@@ -276,6 +276,19 @@
   .slot-stepper .slot-btn:disabled{opacity:.35;cursor:not-allowed}
   .slot-stepper .slot-n{font-size:12px;color:var(--muted);font-weight:600;min-width:52px;text-align:center}
   .slot-stepper .slot-n b{color:var(--cyber);font-size:14px}
+  /* per-round on/off switch */
+  .setup-round summary .round-toggle{
+    margin-left:6px;flex:0 0 auto;width:42px;height:24px;border-radius:999px;border:1px solid var(--line);
+    background:var(--ink);cursor:pointer;position:relative;padding:0;transition:.18s
+  }
+  .round-toggle .rt-knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:var(--muted);transition:.18s}
+  .setup-round summary .round-toggle.on{background:rgba(198,255,61,.18);border-color:var(--lime)}
+  .setup-round summary .round-toggle.on .rt-knob{left:20px;background:var(--lime)}
+  .setup-round summary .round-toggle.off{background:var(--ink)}
+  /* a round that's switched off: dim its header, keep the switch fully lit */
+  .setup-round.round-off summary{opacity:.5}
+  .setup-round.round-off summary .round-toggle{opacity:1}
   .setup-round[open] summary{border-bottom:1px solid var(--line);background:var(--panel-2)}
   .clip-row{padding:12px 18px;border-bottom:1px solid var(--line)}
   .clip-row:last-child{border-bottom:0}
@@ -509,6 +522,25 @@ const clipCount = (r, st) => {
   const saved = st && st.counts && st.counts[r.key];
   return (typeof saved === "number" && saved > 0) ? saved : (r.count || CLIPS_PER_ROUND);
 };
+// rounds you can switch off (skip the finale + winner — the game needs its ending)
+const canToggle = (r) => !r.finaleMode && !r.winnerMode;
+// is this round turned on right now? (disabled map lives in state, defaults to on)
+const isEnabled = (r, st) => {
+  st = st || (typeof state !== "undefined" ? state : null);
+  return !(st && st.disabled && st.disabled[r.key]);
+};
+// index of the next enabled round from `from` moving in `dir` (+1/-1); -1 if none
+function nextEnabledRound(from, dir, st){
+  for(let i=from+dir; i>=0 && i<ROUNDS.length; i+=dir){
+    if(isEnabled(ROUNDS[i], st)) return i;
+  }
+  return -1;
+}
+// first enabled round index (fallback 0 so we never point at nothing)
+function firstEnabledRound(st){
+  const i=ROUNDS.findIndex(r=>isEnabled(r, st));
+  return i>=0 ? i : 0;
+}
 
 const SAMPLE = {
   idol:[["Jennie · BLACKPINK"],["V · BTS"],["Karina · aespa"],["Felix · Stray Kids"],["Wonyoung · IVE"]],
@@ -518,10 +550,11 @@ const SAMPLE = {
 };
 
 /* ============ STATE ============ */
-function defaultState(){ return { clips:{}, players:[], counts:{}, cur:{round:0, clip:0} }; }
+function defaultState(){ return { clips:{}, players:[], counts:{}, disabled:{}, cur:{round:0, clip:0} }; }
 function ensureStructure(s){
   if(!s.clips) s.clips={};
   if(!s.counts) s.counts={};
+  if(!s.disabled) s.disabled={};
   // clip arrays follow the saved (or default) slot count for each round
   ROUNDS.forEach(r=>{
     const n=clipCount(r,s);
@@ -532,6 +565,8 @@ function ensureStructure(s){
   if(!s.cur) s.cur={round:0,clip:0};
   // clamp current position in case rounds/counts changed
   if(s.cur.round>=ROUNDS.length) s.cur.round=0;
+  // never sit on a disabled round — hop to the first enabled one
+  if(!isEnabled(ROUNDS[s.cur.round], s)){ s.cur.round=firstEnabledRound(s); s.cur.clip=0; }
   const maxClip=clipCount(ROUNDS[s.cur.round],s)-1;
   if(s.cur.clip>maxClip) s.cur.clip=0;
   return s;
@@ -624,11 +659,14 @@ function toast(msg){
 function renderRail(){
   const rail=document.getElementById("rail");
   rail.innerHTML="";
+  let shown=0; // sequential R-number across only the enabled rounds
   ROUNDS.forEach((r,i)=>{
+    if(!isEnabled(r)) return; // disabled rounds don't appear on the rail
+    shown++;
     const filled = state.clips[r.key].some(c=>c.url || c.img1 || (c.a&&c.a[0]));
     const chip=document.createElement("div");
     chip.className="chip"+(i===state.cur.round?" active":"")+(filled&&i!==state.cur.round?" done":"");
-    chip.innerHTML=`<span class="rnum">R${i+1}</span><span class="emo">${r.emo}</span>${r.name}`;
+    chip.innerHTML=`<span class="rnum">R${shown}</span><span class="emo">${r.emo}</span>${r.name}`;
     chip.onclick=()=>{ state.cur={round:i,clip:0}; save(); renderAll(); };
     rail.appendChild(chip);
   });
@@ -750,9 +788,9 @@ function renderStage(){
   }
 
   // prev/next disabled at edges of whole game
-  document.getElementById("prevBtn").disabled = (state.cur.round===0 && state.cur.clip===0);
-  const lastR = ROUNDS.length-1;
-  document.getElementById("nextBtn").disabled = (state.cur.round===lastR && state.cur.clip===clipCount(r)-1);
+  // edges are the first/last ENABLED rounds, not the raw array ends
+  document.getElementById("prevBtn").disabled = (nextEnabledRound(state.cur.round,-1)<0 && state.cur.clip===0);
+  document.getElementById("nextBtn").disabled = (nextEnabledRound(state.cur.round,1)<0 && state.cur.clip===clipCount(r)-1);
 
   // snippet timing row only on audio-only round
   document.getElementById("snipControls").classList.toggle("show", !!r.audioOnly);
@@ -1133,8 +1171,14 @@ function step(dir){
   let {round,clip}=state.cur;
   clip+=dir;
   const cur=clipCount(ROUNDS[round]);
-  if(clip>=cur){ if(round<ROUNDS.length-1){round++;clip=0;} else {clip=cur-1;} }
-  if(clip<0){ if(round>0){round--;clip=clipCount(ROUNDS[round])-1;} else {clip=0;} }
+  if(clip>=cur){
+    const nx=nextEnabledRound(round,1);
+    if(nx>=0){ round=nx; clip=0; } else { clip=cur-1; } // no enabled round ahead: stay put
+  }
+  if(clip<0){
+    const pv=nextEnabledRound(round,-1);
+    if(pv>=0){ round=pv; clip=clipCount(ROUNDS[pv])-1; } else { clip=0; }
+  }
   state.cur={round,clip}; save(); renderAll();
 }
 
@@ -1454,6 +1498,8 @@ function renderSetup(){
     det.className="setup-round";
     det.dataset.rk=r.key;
     if(ri===state.cur.round || wasOpen.has(r.key)) det.open=true;
+    const on=isEnabled(r);
+    if(!on) det.classList.add("round-off");
     const n=clipCount(r);
     const stepper = isAdjustable(r)
       ? `<span class="slot-stepper" title="How many slots this round has">
@@ -1462,7 +1508,11 @@ function renderSetup(){
            <button type="button" class="slot-btn" data-slot="1" data-r="${r.key}" ${n>=MAX_SLOTS?"disabled":""} aria-label="More slots">+</button>
          </span>`
       : "";
-    det.innerHTML=`<summary><span class="emo">${r.emo}</span> Round ${ri+1}: ${r.name}${stepper}<span class="cnt">${filled}/${n}</span></summary>`;
+    // on/off switch for rounds that can be turned off (skips finale + winner)
+    const toggle = canToggle(r)
+      ? `<button type="button" class="round-toggle ${on?'on':'off'}" data-toggle="${r.key}" role="switch" aria-checked="${on}" title="${on?'Round is on — click to hide it':'Round is off — click to include it'}"><span class="rt-knob"></span></button>`
+      : "";
+    det.innerHTML=`<summary><span class="emo">${r.emo}</span> Round ${ri+1}: ${r.name}${stepper}${toggle}<span class="cnt">${filled}/${n}</span></summary>`;
     for(let i=0;i<clipCount(r);i++){
       const clip=state.clips[r.key][i];
       const row=document.createElement("div");
@@ -1597,6 +1647,35 @@ function renderSetup(){
       setCount(btn.dataset.r, +btn.dataset.slot);
     };
   });
+
+  // per-round on/off switch (also inside <summary>, so stop the panel from toggling)
+  box.querySelectorAll(".round-toggle").forEach(btn=>{
+    btn.onclick=(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      setEnabled(btn.dataset.toggle, btn.classList.contains("off"));
+    };
+  });
+}
+
+// turn a round on or off. off rounds are hidden from the rail and skipped in play.
+function setEnabled(rk, on){
+  const r=ROUNDS.find(x=>x.key===rk); if(!r||!canToggle(r)) return;
+  if(!state.disabled) state.disabled={};
+  if(on){
+    delete state.disabled[rk];
+  } else {
+    // don't let the player switch off the last remaining toggleable round
+    const otherOn = ROUNDS.some(x=>x.key!==rk && canToggle(x) && isEnabled(x));
+    if(!otherOn){ toast("Keep at least one guessing round on"); return; }
+    state.disabled[rk]=true;
+    // if we just turned off the round we're sitting on, hop to the nearest enabled one
+    if(ROUNDS[state.cur.round].key===rk){
+      const nx=nextEnabledRound(state.cur.round,1);
+      const pv=nextEnabledRound(state.cur.round,-1);
+      state.cur={round: (nx>=0?nx:(pv>=0?pv:firstEnabledRound())), clip:0};
+    }
+  }
+  save(); renderSetup(); renderAll();
 }
 
 // change how many slots a round has. delta is +1 or -1.
