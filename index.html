@@ -264,7 +264,18 @@
   .setup-round summary{padding:15px 18px;cursor:pointer;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;list-style:none}
   .setup-round summary::-webkit-details-marker{display:none}
   .setup-round summary .emo{font-size:18px}
-  .setup-round summary .cnt{margin-left:auto;font-size:12px;color:var(--muted);font-weight:600}
+  .setup-round summary .cnt{font-size:12px;color:var(--muted);font-weight:600}
+  /* per-round slot stepper */
+  .setup-round summary .slot-stepper{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
+  .slot-stepper .slot-btn{
+    width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--paper);font:inherit;font-weight:700;font-size:16px;line-height:1;cursor:pointer;
+    display:grid;place-items:center;transition:.15s;padding:0
+  }
+  .slot-stepper .slot-btn:hover:not(:disabled){border-color:var(--cyber);color:var(--cyber)}
+  .slot-stepper .slot-btn:disabled{opacity:.35;cursor:not-allowed}
+  .slot-stepper .slot-n{font-size:12px;color:var(--muted);font-weight:600;min-width:52px;text-align:center}
+  .slot-stepper .slot-n b{color:var(--cyber);font-size:14px}
   .setup-round[open] summary{border-bottom:1px solid var(--line);background:var(--panel-2)}
   .clip-row{padding:12px 18px;border-bottom:1px solid var(--line)}
   .clip-row:last-child{border-bottom:0}
@@ -427,7 +438,16 @@ const ROUNDS = [
     fields:[]},
 ];
 const CLIPS_PER_ROUND = 5; // default per round
-const clipCount = (r) => r.count || CLIPS_PER_ROUND;
+const MAX_SLOTS = 30;      // upper limit when adding slots by hand
+// rounds you can resize (skip the single-shot finale + winner screens)
+const isAdjustable = (r) => !r.finaleMode && !r.winnerMode;
+// how many slots this round has right now: your saved override, else its default
+// (st defaults to the global state, but ensureStructure passes the state it's building)
+const clipCount = (r, st) => {
+  st = st || (typeof state !== "undefined" ? state : null);
+  const saved = st && st.counts && st.counts[r.key];
+  return (typeof saved === "number" && saved > 0) ? saved : (r.count || CLIPS_PER_ROUND);
+};
 
 const SAMPLE = {
   idol:[["Jennie · BLACKPINK"],["V · BTS"],["Karina · aespa"],["Felix · Stray Kids"],["Wonyoung · IVE"]],
@@ -437,18 +457,21 @@ const SAMPLE = {
 };
 
 /* ============ STATE ============ */
-function defaultState(){ return { clips:{}, players:[], cur:{round:0, clip:0} }; }
+function defaultState(){ return { clips:{}, players:[], counts:{}, cur:{round:0, clip:0} }; }
 function ensureStructure(s){
   if(!s.clips) s.clips={};
+  if(!s.counts) s.counts={};
+  // clip arrays follow the saved (or default) slot count for each round
   ROUNDS.forEach(r=>{
-    if(!s.clips[r.key]) s.clips[r.key]=Array.from({length:clipCount(r)},()=>({url:"",a:[]}));
-    while(s.clips[r.key].length < clipCount(r)) s.clips[r.key].push({url:"",a:[]});
+    const n=clipCount(r,s);
+    if(!s.clips[r.key]) s.clips[r.key]=Array.from({length:n},()=>({url:"",a:[]}));
+    while(s.clips[r.key].length < n) s.clips[r.key].push({url:"",a:[]});
   });
   if(!s.players) s.players=[];
   if(!s.cur) s.cur={round:0,clip:0};
   // clamp current position in case rounds/counts changed
   if(s.cur.round>=ROUNDS.length) s.cur.round=0;
-  const maxClip=clipCount(ROUNDS[s.cur.round])-1;
+  const maxClip=clipCount(ROUNDS[s.cur.round],s)-1;
   if(s.cur.clip>maxClip) s.cur.clip=0;
   return s;
 }
@@ -1208,13 +1231,24 @@ function renderScores(){
 /* ============ SETUP ============ */
 function renderSetup(){
   const box=document.getElementById("setupRounds");
+  // remember which rounds are expanded so a re-render (e.g. slot +/-) doesn't collapse them
+  const wasOpen=new Set([...box.querySelectorAll("details.setup-round[open]")].map(d=>d.dataset.rk));
   box.innerHTML="";
   ROUNDS.forEach((r,ri)=>{
     const filled=state.clips[r.key].filter(c=>c.url||c.img1||(c.a&&c.a[0])).length;
     const det=document.createElement("details");
     det.className="setup-round";
-    if(ri===state.cur.round) det.open=true;
-    det.innerHTML=`<summary><span class="emo">${r.emo}</span> Round ${ri+1}: ${r.name}<span class="cnt">${filled}/${clipCount(r)}</span></summary>`;
+    det.dataset.rk=r.key;
+    if(ri===state.cur.round || wasOpen.has(r.key)) det.open=true;
+    const n=clipCount(r);
+    const stepper = isAdjustable(r)
+      ? `<span class="slot-stepper" title="How many slots this round has">
+           <button type="button" class="slot-btn" data-slot="-1" data-r="${r.key}" ${n<=1?"disabled":""} aria-label="Fewer slots">−</button>
+           <span class="slot-n"><b>${n}</b> slot${n===1?"":"s"}</span>
+           <button type="button" class="slot-btn" data-slot="1" data-r="${r.key}" ${n>=MAX_SLOTS?"disabled":""} aria-label="More slots">+</button>
+         </span>`
+      : "";
+    det.innerHTML=`<summary><span class="emo">${r.emo}</span> Round ${ri+1}: ${r.name}${stepper}<span class="cnt">${filled}/${n}</span></summary>`;
     for(let i=0;i<clipCount(r);i++){
       const clip=state.clips[r.key][i];
       const row=document.createElement("div");
@@ -1335,6 +1369,37 @@ function renderSetup(){
       renderSetup(); renderRail();
     };
   });
+
+  // per-round slot +/- (buttons live inside <summary>, so stop it toggling the panel)
+  box.querySelectorAll(".slot-btn").forEach(btn=>{
+    btn.onclick=(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      setCount(btn.dataset.r, +btn.dataset.slot);
+    };
+  });
+}
+
+// change how many slots a round has. delta is +1 or -1.
+// growing adds empty slots; shrinking warns before dropping any filled slot.
+function setCount(rk, delta){
+  const r=ROUNDS.find(x=>x.key===rk); if(!r||!isAdjustable(r)) return;
+  const cur=clipCount(r);
+  const next=Math.max(1, Math.min(MAX_SLOTS, cur+delta));
+  if(next===cur) return;
+  const arr=state.clips[rk] || (state.clips[rk]=[]);
+  if(next<cur){
+    // count how many of the slots being removed actually hold something
+    const isFilled=(c)=> c && (c.url||c.img1||c.img2||(c.a&&c.a.some(v=>v&&String(v).trim())));
+    const losing=arr.slice(next).filter(isFilled).length;
+    if(losing>0 && !confirm(`Removing ${cur-next} slot${cur-next===1?"":"s"} will delete ${losing} filled entr${losing===1?"y":"ies"} from "${r.name}". Continue?`)) return;
+    arr.length=next;
+  } else {
+    while(arr.length<next) arr.push({url:"",a:[]});
+  }
+  state.counts[rk]=next;
+  // if we shrank the round we're currently on, pull the playhead back in range
+  if(ROUNDS[state.cur.round].key===rk && state.cur.clip>next-1) state.cur.clip=next-1;
+  save(); renderSetup(); renderAll();
 }
 
 // downscale an image file to max dimension, return JPEG base64
