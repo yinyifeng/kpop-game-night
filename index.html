@@ -313,6 +313,54 @@
     z-index:50;opacity:0;transition:.3s;pointer-events:none}
   .toast.show{opacity:1}
 
+  /* ---------- FLOATING SCOREBOARD ---------- */
+  .score-fab-wrap{position:fixed;right:20px;top:50%;transform:translateY(-50%);z-index:60;
+    display:flex;align-items:center;gap:12px}
+  .score-fab{
+    width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;font-size:26px;
+    background:linear-gradient(135deg,var(--hot),var(--violet));color:#fff;
+    box-shadow:0 8px 24px rgba(122,92,255,.45),0 2px 8px rgba(0,0,0,.4);
+    display:grid;place-items:center;transition:transform .15s, box-shadow .15s}
+  .score-fab:hover{transform:scale(1.06)}
+  .score-fab:active{transform:scale(.96)}
+  .score-fab-wrap.open .score-fab{box-shadow:0 0 0 3px rgba(0,229,255,.5),0 8px 24px rgba(122,92,255,.45)}
+  .score-pop{
+    order:-1;width:290px;max-height:70vh;overflow-y:auto;background:var(--panel);
+    border:1px solid var(--line);border-radius:18px;padding:14px;
+    box-shadow:0 16px 44px rgba(0,0,0,.55);
+    animation:popIn .16s ease}
+  @keyframes popIn{from{opacity:0;transform:translateX(10px) scale(.97)}to{opacity:1;transform:none}}
+  .score-pop-head{display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:12px;font-weight:700;font-size:14px;letter-spacing:.05em}
+  .score-pop-close{background:none;border:none;color:var(--muted);font-size:22px;line-height:1;
+    cursor:pointer;padding:0 4px}
+  .score-pop-close:hover{color:var(--hot)}
+  .score-pop-list{display:flex;flex-direction:column;gap:8px}
+  .score-pop-empty{color:var(--muted);font-size:13px;line-height:1.5;padding:6px 2px}
+  .sp-row{display:flex;align-items:center;gap:10px;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:12px;padding:9px 11px}
+  .sp-row.lead{border-color:var(--lime)}
+  .sp-name{flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .sp-name .crown{margin-left:5px}
+  .sp-score{font-size:20px;font-weight:800;color:var(--lime);min-width:30px;text-align:center}
+  .sp-btns{display:flex;gap:6px}
+  .sp-btns button{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);
+    background:var(--ink);color:var(--paper);font-size:18px;font-weight:700;cursor:pointer;
+    display:grid;place-items:center;transition:.12s;padding:0}
+  .sp-btns .sp-plus:hover{border-color:var(--lime);color:var(--lime)}
+  .sp-btns .sp-minus:hover{border-color:var(--hot);color:var(--hot)}
+  .sp-add{border:1px dashed var(--line);border-radius:12px;color:var(--muted);
+    font-weight:700;font-size:13px;padding:10px;cursor:pointer;text-align:center;transition:.15s}
+  .sp-add:hover{border-color:var(--cyber);color:var(--cyber)}
+  .sp-add-input{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:10px;
+    color:var(--paper);font:inherit;font-weight:600;font-size:13px;padding:9px 11px;outline:none}
+  .sp-add-input:focus{border-color:var(--cyber)}
+  @media(max-width:640px){
+    .score-fab-wrap{right:14px;bottom:20px;top:auto;transform:none}
+    .score-pop{width:min(78vw,290px)}
+  }
+
   @media(max-width:640px){
     .wrap{padding:18px 14px 60px}
     .player{margin:16px 14px}
@@ -401,6 +449,18 @@
   </div>
 
   <footer>Built for tonight · auto-saved &amp; survives reloads · back up with Save setup to file</footer>
+</div>
+
+<!-- FLOATING SCOREBOARD (always on top; add points without scrolling) -->
+<div class="score-fab-wrap" id="scoreFabWrap">
+  <div class="score-pop" id="scorePop" hidden>
+    <div class="score-pop-head">
+      <span>Scoreboard</span>
+      <button class="score-pop-close" id="scorePopClose" aria-label="Close">×</button>
+    </div>
+    <div class="score-pop-list" id="scorePopList"></div>
+  </div>
+  <button class="score-fab" id="scoreFab" aria-label="Toggle scoreboard" title="Scoreboard">🏆</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1179,6 +1239,19 @@ function startWinner(){
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 /* ============ SCOREBOARD ============ */
+// shared mutations so the main board + floating bubble always agree
+function adjustScore(i,d){
+  if(!state.players[i]) return;
+  state.players[i].score+=d;
+  save(); renderScores(); renderScoreBubble();
+}
+function addPlayerNamed(name){
+  if(name&&name.trim()){ state.players.push({name:name.trim(),score:0}); save(); renderScores(); renderScoreBubble(); }
+}
+function removePlayer(i){
+  if(!state.players[i]) return;
+  if(confirm("Remove "+state.players[i].name+"?")){ state.players.splice(i,1); save(); renderScores(); renderScoreBubble(); }
+}
 function renderScores(){
   const box=document.getElementById("players");
   box.innerHTML="";
@@ -1200,9 +1273,7 @@ function renderScores(){
   const add=document.createElement("div");
   add.className="add-player";
   add.innerHTML=`<span class="pl">＋</span>Add player`;
-  function commitPlayer(name){
-    if(name&&name.trim()){ state.players.push({name:name.trim(),score:0}); save(); renderScores(); }
-  }
+  function commitPlayer(name){ addPlayerNamed(name); }
   add.onclick=()=>{
     // inline name entry (no native prompt — that gets suppressed when screen-sharing)
     add.classList.add("editing");
@@ -1221,11 +1292,66 @@ function renderScores(){
   box.appendChild(add);
 
   box.querySelectorAll(".adj button").forEach(b=>{
-    b.onclick=()=>{ const i=+b.dataset.i,d=+b.dataset.d; state.players[i].score+=d; save(); renderScores(); };
+    b.onclick=()=>{ adjustScore(+b.dataset.i, +b.dataset.d); };
   });
   box.querySelectorAll(".remove").forEach(x=>{
-    x.onclick=()=>{ const i=+x.dataset.rm; if(confirm("Remove "+state.players[i].name+"?")){state.players.splice(i,1);save();renderScores();} };
+    x.onclick=()=>{ removePlayer(+x.dataset.rm); };
   });
+}
+
+/* ============ FLOATING SCOREBOARD BUBBLE ============ */
+function renderScoreBubble(){
+  const list=document.getElementById("scorePopList");
+  if(!list) return;
+  list.innerHTML="";
+  const max = state.players.length ? Math.max(...state.players.map(p=>p.score)) : 0;
+  if(state.players.length===0){
+    const e=document.createElement("div");
+    e.className="score-pop-empty";
+    e.textContent="No players yet. Add one below to start keeping score.";
+    list.appendChild(e);
+  }
+  state.players.forEach((p,i)=>{
+    const lead=p.score>0 && p.score===max;
+    const row=document.createElement("div");
+    row.className="sp-row"+(lead?" lead":"");
+    row.innerHTML=`
+      <span class="sp-name">${p.name}${lead?'<span class="crown">👑</span>':''}</span>
+      <span class="sp-score">${p.score}</span>
+      <span class="sp-btns">
+        <button class="sp-minus" data-i="${i}" data-d="-1" aria-label="Minus one">−</button>
+        <button class="sp-plus" data-i="${i}" data-d="1" aria-label="Plus one">+</button>
+      </span>`;
+    list.appendChild(row);
+  });
+  // add-player row (inline entry, same approach as the main board)
+  const add=document.createElement("div");
+  add.className="sp-add";
+  add.textContent="＋ Add player";
+  add.onclick=()=>{
+    add.classList.remove("sp-add");
+    add.innerHTML=`<input class="sp-add-input" type="text" placeholder="Player / team name" maxlength="40" autocomplete="off">`;
+    const input=add.querySelector(".sp-add-input");
+    input.focus();
+    input.onkeydown=(e)=>{
+      if(e.key==="Enter"){ e.preventDefault(); addPlayerNamed(input.value); }
+      else if(e.key==="Escape"){ e.preventDefault(); renderScoreBubble(); }
+    };
+    input.onblur=()=>{ if(input.value.trim()) addPlayerNamed(input.value); else renderScoreBubble(); };
+  };
+  list.appendChild(add);
+
+  list.querySelectorAll(".sp-btns button").forEach(b=>{
+    b.onclick=()=>{ adjustScore(+b.dataset.i, +b.dataset.d); };
+  });
+}
+function toggleScoreBubble(force){
+  const wrap=document.getElementById("scoreFabWrap");
+  const pop=document.getElementById("scorePop");
+  const open = (typeof force==="boolean") ? force : pop.hidden;
+  pop.hidden=!open;
+  wrap.classList.toggle("open", open);
+  if(open) renderScoreBubble();
 }
 
 /* ============ SETUP ============ */
@@ -1426,7 +1552,7 @@ function downscaleImage(file, maxDim, cb){
 function saveSafely(){ save(); }
 
 /* ============ WIRE UP ============ */
-function renderAll(){ renderRail(); renderStage(); renderScores(); }
+function renderAll(){ renderRail(); renderStage(); renderScores(); renderScoreBubble(); }
 
 document.getElementById("playBtn").onclick=()=>{
   const r=ROUNDS[state.cur.round];
@@ -1452,8 +1578,18 @@ document.getElementById("skipBtn").onclick=skipForward;
 document.getElementById("prevBtn").onclick=()=>step(-1);
 document.getElementById("nextBtn").onclick=()=>step(1);
 document.getElementById("resetScores").onclick=()=>{
-  if(confirm("Reset all scores to 0?")){ state.players.forEach(p=>p.score=0); save(); renderScores(); }
+  if(confirm("Reset all scores to 0?")){ state.players.forEach(p=>p.score=0); save(); renderScores(); renderScoreBubble(); }
 };
+// floating scoreboard bubble
+document.getElementById("scoreFab").onclick=(e)=>{ e.stopPropagation(); toggleScoreBubble(); };
+document.getElementById("scorePopClose").onclick=(e)=>{ e.stopPropagation(); toggleScoreBubble(false); };
+// clicking outside the popup closes it (but keep it open while clicking inside).
+// use pointerdown so we test containment BEFORE any re-render detaches the target,
+// otherwise tapping +/- (which rebuilds the list) would look like an outside click.
+document.addEventListener("pointerdown",(e)=>{
+  const wrap=document.getElementById("scoreFabWrap");
+  if(wrap && wrap.classList.contains("open") && !wrap.contains(e.target)) toggleScoreBubble(false);
+});
 document.getElementById("setupToggle").onclick=()=>{
   const s=document.getElementById("setup");
   s.classList.toggle("open");
