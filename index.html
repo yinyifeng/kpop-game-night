@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-POP GAME NIGHT</title>
+<style>
+  :root{
+    --ink:#0a0710;
+    --panel:#150f22;
+    --panel-2:#1d1533;
+    --hot:#ff2e88;      /* hot pink */
+    --cyber:#00e5ff;    /* cyan */
+    --lime:#c6ff3d;     /* accent lime for scores */
+    --violet:#7a5cff;
+    --paper:#f4ecff;
+    --muted:#8a7fa8;
+    --line:rgba(255,255,255,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Space Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(122,92,255,.25), transparent 60%),
+      radial-gradient(1000px 500px at 0% 110%, rgba(255,46,136,.18), transparent 55%),
+      var(--ink);
+    color:var(--paper);
+    min-height:100vh;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  @font-face{font-family:"Space Grotesk";src:local("Space Grotesk")}
+
+  .grain{position:fixed;inset:0;pointer-events:none;opacity:.04;z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+  .wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:28px 22px 80px}
+
+  /* ---------- HEADER ---------- */
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:26px}
+  .brand{line-height:.92}
+  .brand .eyebrow{font-size:12px;letter-spacing:.42em;color:var(--cyber);text-transform:uppercase;margin-bottom:10px;font-weight:700}
+  .brand h1{
+    font-size:clamp(34px,7vw,72px);font-weight:800;letter-spacing:-.02em;
+    background:linear-gradient(92deg,var(--hot),var(--violet) 45%,var(--cyber));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 4px 30px rgba(255,46,136,.25));
+  }
+  .brand h1 .beat{display:inline-block;animation:beat 2.4s ease-in-out infinite}
+  @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.12) rotate(-3deg)}}
+
+  .setup-toggle{
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    padding:10px 16px;border-radius:100px;cursor:pointer;font-family:inherit;
+    font-size:13px;font-weight:600;letter-spacing:.04em;transition:.2s;
+  }
+  .setup-toggle:hover{border-color:var(--cyber);color:var(--cyber)}
+
+  /* ---------- ROUND RAIL ---------- */
+  .rail{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:22px;scrollbar-width:none}
+  .rail::-webkit-scrollbar{display:none}
+  .chip{
+    flex:0 0 auto;border:1px solid var(--line);background:var(--panel);
+    padding:10px 16px;border-radius:12px;cursor:pointer;transition:.18s;
+    display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;white-space:nowrap;color:var(--muted)
+  }
+  .chip .rnum{font-size:11px;font-weight:800;opacity:.6}
+  .chip .emo{font-size:15px}
+  .chip:hover{transform:translateY(-2px);border-color:var(--violet)}
+  .chip.active{background:linear-gradient(120deg,var(--hot),var(--violet));color:#fff;border-color:transparent;box-shadow:0 8px 24px rgba(122,92,255,.35)}
+  .chip.done{color:var(--lime);border-color:rgba(198,255,61,.3)}
+
+  /* ---------- STAGE ---------- */
+  .stage{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:26px;overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);
+  }
+  .stage-head{padding:22px 26px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  .round-title{display:flex;align-items:center;gap:14px}
+  .round-title .badge{
+    width:52px;height:52px;border-radius:15px;display:grid;place-items:center;font-size:26px;
+    background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.18),transparent),var(--panel);
+    border:1px solid var(--line)
+  }
+  .round-title h2{font-size:22px;font-weight:800;letter-spacing:-.01em}
+  .round-title .sub{font-size:12.5px;color:var(--muted);margin-top:3px;max-width:44ch}
+
+  .clip-counter{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.05em;text-align:right}
+  .clip-counter b{color:var(--cyber);font-size:15px}
+
+  /* PLAYER AREA */
+  .player{margin:20px 26px;border-radius:18px;overflow:hidden;background:#000;position:relative;aspect-ratio:16/9;border:1px solid var(--line)}
+  .player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  /* Mask strip that hides YouTube top chrome (title/share) during guessing */
+  .chrome-mask{position:absolute;top:0;left:0;right:0;height:70px;background:#000;z-index:3;transition:opacity .3s;pointer-events:none}
+  .chrome-mask.hidden{opacity:0}
+  /* full cover for audio-only rounds: video hidden, sound plays underneath */
+  .audio-cover{position:absolute;inset:0;z-index:4;display:grid;place-items:center;text-align:center;
+    background:linear-gradient(140deg,#1a1030,#0d0818);transition:opacity .35s}
+  .audio-cover.gone{opacity:0;pointer-events:none}
+  .audio-cover .ac-emo{font-size:60px;margin-bottom:16px}
+  .audio-cover .ac-pulse{width:120px;height:120px;border-radius:50%;margin:0 auto 20px;
+    background:radial-gradient(circle,rgba(255,46,136,.5),transparent 70%);animation:pulse 1.3s ease-in-out infinite;display:grid;place-items:center;font-size:48px}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.14);opacity:1}}
+  .audio-cover p{color:var(--muted);font-size:14px;max-width:30ch;margin:0 auto;line-height:1.5}
+
+  .player .placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px;z-index:2}
+  .player .placeholder .ph-emo{font-size:52px;margin-bottom:14px;filter:grayscale(.2)}
+  .player .placeholder p{color:var(--muted);font-size:14px;max-width:32ch;margin:0 auto;line-height:1.5}
+  .player .placeholder .hint{margin-top:14px;font-size:12px;color:var(--cyber)}
+
+  /* text-prompt clips (lyric / emoji) */
+  .prompt-card{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:34px;z-index:2;background:linear-gradient(140deg,#1a1030,#0d0818)}
+  .prompt-card .kicker{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--hot);font-weight:700;margin-bottom:18px}
+  .prompt-card .big{font-size:clamp(28px,6vw,58px);font-weight:800;line-height:1.15;letter-spacing:-.01em}
+  .prompt-card .emoji-line{font-size:clamp(44px,10vw,88px);letter-spacing:.06em}
+  /* idol photo mode */
+  .idol-photo{position:absolute;inset:0;z-index:2;display:grid;place-items:center;background:#0d0818}
+  .idol-photo img{max-width:100%;max-height:100%;object-fit:contain}
+  .idol-photo .caption{position:absolute;bottom:0;left:0;right:0;padding:10px;text-align:center;
+    font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:700;
+    background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
+  .idol-photo.guess .caption{color:var(--cyber)}
+  .idol-photo.now .caption{color:var(--lime)}
+  /* ---- FINALE sequence ---- */
+  .finale-stage{position:absolute;inset:0;z-index:5;display:grid;place-items:center;text-align:center;
+    background:radial-gradient(circle at 50% 40%,#1a1030,#080510 70%);overflow:hidden}
+  .finale-stage .beat{opacity:0;transform:translateY(12px) scale(.96);
+    transition:opacity .7s ease,transform .7s ease;padding:0 28px;max-width:92%}
+  .finale-stage .beat.in{opacity:1;transform:none}
+  .finale-line{font-weight:800;letter-spacing:-.01em;line-height:1.12;
+    font-size:clamp(30px,6.5vw,64px);color:var(--paper)}
+  .finale-line .accent{background:linear-gradient(92deg,var(--hot),var(--violet) 50%,var(--cyber));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .finale-tap{margin-top:26px;font-size:13px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--cyber);font-weight:700;animation:tappulse 1.2s ease-in-out infinite}
+  @keyframes tappulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .finale-final{font-weight:800;font-size:clamp(64px,16vw,180px);line-height:.9;letter-spacing:-.03em;
+    background:linear-gradient(96deg,var(--hot),var(--violet) 45%,var(--cyber));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 8px 44px rgba(255,46,136,.35))}
+  .finale-final.pop{animation:finalePop .85s cubic-bezier(.2,1.3,.4,1) both}
+  @keyframes finalePop{0%{opacity:0;transform:scale(.4)}60%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+  .finale-sub{margin-top:14px;font-size:clamp(15px,3vw,22px);color:var(--muted);font-weight:600;
+    opacity:0;transition:opacity .6s ease .3s}
+  .finale-sub.in{opacity:1}
+  .finale-heart{width:16px;height:16px;border-radius:50%;background:var(--hot);margin:0 auto 4px;
+    animation:heart 1s ease-in-out infinite;box-shadow:0 0 30px var(--hot)}
+  @keyframes heart{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.5);opacity:1}}
+  /* ---- WINNER podium (Kahoot-style top 3) ---- */
+  .winner-stage{position:absolute;inset:0;z-index:5;display:grid;place-items:center;text-align:center;
+    background:radial-gradient(circle at 50% 30%,#1a1030,#080510 72%);overflow:hidden}
+  .winner-stage .beat{opacity:0;transform:translateY(12px) scale(.96);transition:opacity .7s,transform .7s;padding:0 24px;max-width:94%}
+  .winner-stage .beat.in{opacity:1;transform:none}
+  .podium{display:flex;align-items:flex-end;justify-content:center;gap:14px;margin-top:8px}
+  .pod{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+    border-radius:14px 14px 0 0;padding:14px 12px 16px;min-width:110px;position:relative;
+    opacity:0;transform:translateY(40px);transition:opacity .5s ease,transform .55s cubic-bezier(.2,1.2,.4,1)}
+  .pod.in{opacity:1;transform:none}
+  .pod .medal{font-size:30px;margin-bottom:6px}
+  .pod .pname{font-weight:800;font-size:16px;margin-bottom:4px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pod .pscore{font-size:13px;color:rgba(255,255,255,.7);font-weight:600}
+  .pod.p1{background:linear-gradient(180deg,rgba(255,215,0,.32),rgba(255,215,0,.08));border:1px solid rgba(255,215,0,.5);height:190px}
+  .pod.p2{background:linear-gradient(180deg,rgba(200,210,225,.28),rgba(200,210,225,.06));border:1px solid rgba(200,210,225,.4);height:150px}
+  .pod.p3{background:linear-gradient(180deg,rgba(205,127,50,.28),rgba(205,127,50,.06));border:1px solid rgba(205,127,50,.4);height:120px}
+  .pod .rank{position:absolute;bottom:8px;font-size:26px;font-weight:800;opacity:.25}
+  .winner-crown{font-size:clamp(40px,9vw,72px);margin-bottom:6px;animation:crownBob 1.6s ease-in-out infinite}
+  @keyframes crownBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .winner-name{font-weight:800;font-size:clamp(34px,8vw,84px);line-height:1;letter-spacing:-.02em;
+    background:linear-gradient(96deg,#ffd700,var(--hot) 55%,var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 6px 34px rgba(255,215,0,.3))}
+  .winner-label{font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:#ffd700;font-weight:700;margin-bottom:14px}
+  .winner-tap{margin-top:24px;font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--cyber);font-weight:700;animation:tappulse 1.2s ease-in-out infinite}
+  .no-players{color:var(--muted);font-size:15px;max-width:32ch;line-height:1.5}
+
+  /* CONTROLS */
+  .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:0 26px 8px}
+  .btn{
+    font-family:inherit;font-weight:700;font-size:14px;letter-spacing:.02em;cursor:pointer;
+    border:0;border-radius:13px;padding:14px 22px;transition:.16s;display:flex;align-items:center;gap:9px
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(120deg,var(--hot),var(--violet));color:#fff;box-shadow:0 10px 26px rgba(255,46,136,.3)}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost{background:var(--panel-2);color:var(--paper);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--cyber);color:var(--cyber)}
+  .btn.reveal{background:transparent;border:1px dashed rgba(0,229,255,.4);color:var(--cyber)}
+  .btn.reveal:hover{background:rgba(0,229,255,.08)}
+  .btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .nav-spacer{flex:1}
+
+  /* snippet timing controls (Guess the Song round only) */
+  .snip-controls{display:none;align-items:center;gap:10px;padding-top:2px;flex-wrap:wrap}
+  .snip-controls.show{display:flex}
+  .snip-label{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+  .btn.snip{background:var(--panel-2);border:1px solid var(--line);color:var(--paper);padding:11px 18px;font-size:14px}
+  .btn.snip:hover{border-color:var(--cyber);color:var(--cyber)}
+  .btn.snip.skip:hover{border-color:var(--violet);color:#c3b4ff}
+  .btn.snip.pause:hover{border-color:var(--hot);color:var(--hot)}
+  .btn.snip.preset.active{background:linear-gradient(120deg,var(--cyber),var(--violet));color:#fff;border-color:transparent;box-shadow:0 6px 18px rgba(0,229,255,.3)}
+
+  .answer{
+    margin:6px 26px 22px;padding:16px 20px;border-radius:14px;
+    background:linear-gradient(120deg,rgba(198,255,61,.1),rgba(0,229,255,.06));
+    border:1px solid rgba(198,255,61,.28);display:none;animation:pop .3s ease
+  }
+  .answer.show{display:block}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .answer .lab{font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--lime);font-weight:700;margin-bottom:6px}
+  .answer .val{font-size:20px;font-weight:800}
+  .answer .val small{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-top:4px}
+
+  /* ---------- SCOREBOARD ---------- */
+  .score-wrap{margin-top:26px}
+  .score-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .score-head h3{font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .score-head .mini{font-size:12px;color:var(--cyber);cursor:pointer;font-weight:600}
+  .players{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .pcard{
+    background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 18px;position:relative;overflow:hidden;transition:.2s
+  }
+  .pcard.lead{border-color:var(--lime);box-shadow:0 0 0 1px rgba(198,255,61,.3),0 14px 30px rgba(198,255,61,.12)}
+  .pcard.lead::after{content:"👑";position:absolute;top:12px;right:14px;font-size:18px}
+  .pcard .pname{font-size:15px;font-weight:700;margin-bottom:10px;padding-right:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pcard .pscore{font-size:40px;font-weight:800;line-height:1;letter-spacing:-.02em;
+    background:linear-gradient(120deg,var(--cyber),var(--lime));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .pcard .adj{display:flex;gap:8px;margin-top:14px}
+  .adj button{flex:1;border:1px solid var(--line);background:var(--panel-2);color:var(--paper);
+    border-radius:10px;padding:9px 0;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s}
+  .adj button:hover{border-color:var(--hot)}
+  .adj button.plus:hover{border-color:var(--lime);color:var(--lime)}
+  .adj button.minus:hover{border-color:var(--hot);color:var(--hot)}
+  .pcard .remove{position:absolute;bottom:10px;right:12px;font-size:11px;color:var(--muted);cursor:pointer;opacity:0;transition:.2s}
+  .pcard:hover .remove{opacity:1}
+  .add-player{
+    border:1px dashed var(--line);border-radius:18px;display:grid;place-items:center;cursor:pointer;
+    color:var(--muted);font-weight:600;font-size:14px;min-height:120px;transition:.2s;gap:6px;text-align:center;padding:14px
+  }
+  .add-player:hover{border-color:var(--cyber);color:var(--cyber)}
+  .add-player .pl{font-size:26px}
+
+  /* ---------- SETUP PANEL ---------- */
+  .setup{display:none;margin-top:26px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:24px}
+  .setup.open{display:block}
+  .setup h3{font-size:16px;margin-bottom:6px}
+  .setup .note{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+  .setup .note code{background:var(--panel-2);padding:2px 7px;border-radius:6px;color:var(--cyber);font-size:12px}
+  .setup-round{border:1px solid var(--line);border-radius:16px;margin-bottom:14px;overflow:hidden}
+  .setup-round summary{padding:15px 18px;cursor:pointer;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;list-style:none}
+  .setup-round summary::-webkit-details-marker{display:none}
+  .setup-round summary .emo{font-size:18px}
+  .setup-round summary .cnt{margin-left:auto;font-size:12px;color:var(--muted);font-weight:600}
+  .setup-round[open] summary{border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .clip-row{padding:12px 18px;border-bottom:1px solid var(--line)}
+  .clip-row:last-child{border-bottom:0}
+  .clip-row .rlabel{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.08em;margin-bottom:8px;text-transform:uppercase}
+  .clip-row input{
+    width:100%;background:var(--ink);border:1px solid var(--line);border-radius:10px;
+    padding:11px 13px;color:var(--paper);font-family:inherit;font-size:13px;margin-bottom:8px;transition:.15s
+  }
+  .clip-row input:focus{outline:none;border-color:var(--cyber)}
+  .clip-row input::placeholder{color:#5a4f74}
+  .clip-row input.start-input{max-width:260px}
+  .clip-row .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media(max-width:560px){.clip-row .two{grid-template-columns:1fr}}
+  /* photo upload boxes */
+  .uploads{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+  @media(max-width:560px){.uploads{grid-template-columns:1fr}}
+  .ubox{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px;
+    background:var(--ink);border:1px solid var(--line);border-radius:12px}
+  .uthumb{width:100%;height:120px;object-fit:cover;border-radius:8px;background:#0a0710}
+  .uthumb.empty{display:grid;place-items:center;color:#5a4f74;font-size:12px;font-weight:600;
+    border:1px dashed var(--line)}
+  .ubtn{font-size:12px;font-weight:700;color:var(--cyber);cursor:pointer;text-align:center;
+    padding:8px 12px;border:1px solid rgba(0,229,255,.3);border-radius:9px;width:100%;transition:.15s}
+  .ubtn:hover{background:rgba(0,229,255,.08)}
+  .uclear{background:none;border:0;color:var(--muted);font-size:11px;cursor:pointer;font-family:inherit}
+  .uclear:hover{color:var(--hot)}
+
+  .setup-actions{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
+
+  footer{text-align:center;margin-top:44px;color:var(--muted);font-size:12px;letter-spacing:.05em}
+
+  /* modal-ish input */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel-2);
+    border:1px solid var(--line);padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;
+    z-index:50;opacity:0;transition:.3s;pointer-events:none}
+  .toast.show{opacity:1}
+
+  @media(max-width:640px){
+    .wrap{padding:18px 14px 60px}
+    .player{margin:16px 14px}
+    .controls,.stage-head{padding-left:16px;padding-right:16px}
+    .answer{margin-left:16px;margin-right:16px}
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="eyebrow">Screen-share edition · keep score live</div>
+      <h1>K-POP <span class="beat">♪</span> GAME NIGHT</h1>
+    </div>
+    <button class="setup-toggle" id="setupToggle">⚙ Set up clips</button>
+  </header>
+
+  <div class="rail" id="rail"></div>
+
+  <!-- STAGE -->
+  <div class="stage">
+    <div class="stage-head">
+      <div class="round-title">
+        <div class="badge" id="roundEmo">🎬</div>
+        <div>
+          <h2 id="roundName">Round</h2>
+          <div class="sub" id="roundSub"></div>
+        </div>
+      </div>
+      <div class="clip-counter">CLIP<br><b id="clipNow">1</b> / <span id="clipTotal">5</span></div>
+    </div>
+
+    <div class="player" id="player">
+      <div class="chrome-mask" id="chromeMask"></div>
+      <!-- video / prompt injected here -->
+    </div>
+
+    <div class="controls">
+      <button class="btn ghost" id="prevBtn">← Prev</button>
+      <button class="btn primary" id="playBtn">▶ Play clip</button>
+      <button class="btn reveal" id="revealBtn">Reveal answer</button>
+      <div class="nav-spacer"></div>
+      <button class="btn ghost" id="nextBtn">Next →</button>
+    </div>
+
+    <div class="controls snip-controls" id="snipControls">
+      <span class="snip-label">Snippet length:</span>
+      <button class="btn snip preset" data-sec="1">1s</button>
+      <button class="btn snip preset" data-sec="5">5s</button>
+      <button class="btn snip preset" data-sec="10">10s</button>
+      <button class="btn snip skip" id="skipBtn">⏩ +5s</button>
+    </div>
+
+    <div class="answer" id="answerBox">
+      <div class="lab">Answer</div>
+      <div class="val" id="answerVal"></div>
+    </div>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div class="score-wrap">
+    <div class="score-head">
+      <h3>Scoreboard</h3>
+      <span class="mini" id="resetScores">reset scores</span>
+    </div>
+    <div class="players" id="players"></div>
+  </div>
+
+  <!-- SETUP -->
+  <div class="setup" id="setup">
+    <h3>Add your clips</h3>
+    <p class="note">Paste a YouTube link for each clip (a full URL or just the video ID). During play the top bar of the video is masked so the <b>title stays hidden</b> — hit <b>Reveal answer</b> when you're ready to show it. For the <b>Guess the Idol</b> round, upload a guess photo and a reveal photo straight from your computer. For the <b>Emoji</b> round, players guess the song and the group; on reveal the video plays from the <b>Start video at</b> time you set (e.g. 0:48 to jump to the chorus). Everything saves automatically and survives reloads. Use <b>Save setup to file</b> for a portable backup you can reload on any machine. (Finale sounds: put <code>drumroll.mp3</code> and <code>victory.mp3</code> in the served folder.)</p>
+    <div id="setupRounds"></div>
+    <div class="setup-actions">
+      <button class="btn ghost" id="loadSample">Load sample answers</button>
+      <button class="btn ghost" id="saveFile">⬇ Save setup to file</button>
+      <label class="btn ghost" for="loadFileInput" style="cursor:pointer">⬆ Load setup from file</label>
+      <input type="file" id="loadFileInput" accept="application/json,.json" hidden>
+      <button class="btn ghost" id="loadPreloaded">↺ Reset to preloaded</button>
+      <button class="btn ghost" id="clearAll">Clear everything</button>
+      <button class="btn primary" id="doneSetup">Done — let's play</button>
+    </div>
+  </div>
+
+  <footer>Built for tonight · auto-saved &amp; survives reloads · back up with Save setup to file</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+// fires when the YT IFrame API finishes loading
+function onYouTubeIframeAPIReady(){ if(window._ytReadyQueue){ const f=window._ytReadyQueue; window._ytReadyQueue=null; f(); } }
+</script>
+<script>
+/* ============ DATA MODEL ============ */
+const ROUNDS = [
+  {key:"idol", emo:"📸", name:"Guess the Idol",
+    sub:"Baby / blurred / silhouette photo to guess — reveal shows a current photo.",
+    photoMode:true, count:10,
+    fields:["Answer (idol / group)"]},
+  {key:"onesec", emo:"🎵", name:"Guess the Song",
+    sub:"Audio only — video stays hidden until you reveal. Bonus: name the group from the voices.",
+    audioOnly:true, count:10,
+    fields:["Song","Group (bonus)"]},
+  {key:"lyric", emo:"🎤", name:"Finish the Lyric",
+    sub:"Read the line out loud, let them shout the rest, then play the video.",
+    fields:["Lyric prompt (shown on screen)","Answer / full line"]},
+  {key:"emoji", emo:"🎨", name:"Emoji Song Challenge",
+    sub:"Emoji clues on screen. Guess the song AND the group, then reveal the video.",
+    hasStart:true,
+    fields:["Emoji clue (shown on screen)","Song","Artist / group"]},
+  {key:"finale", emo:"🎉", name:"The Final Question",
+    sub:"The big reveal. Auto-builds the suspense, then you tap for the punchline.",
+    finaleMode:true, count:1,
+    fields:[]},
+  {key:"winner", emo:"🏆", name:"Winner Reveal",
+    sub:"Drumroll, then the top 3 podium from the scoreboard — winner last, with a fanfare.",
+    winnerMode:true, count:1,
+    fields:[]},
+];
+const CLIPS_PER_ROUND = 5; // default per round
+const clipCount = (r) => r.count || CLIPS_PER_ROUND;
+
+const SAMPLE = {
+  idol:[["Jennie · BLACKPINK"],["V · BTS"],["Karina · aespa"],["Felix · Stray Kids"],["Wonyoung · IVE"]],
+  onesec:[["Ditto","NewJeans"],["Seven","Jung Kook"],["Spicy","aespa"],["Super","SEVENTEEN"],["Fighting","BSS"]],
+  lyric:[["\"Cause I'm…\"","…Super Shy, Super Shy! — NewJeans"],["\"I'm feeling like a…\"","…Vroom vroom — Get a Guitar / RIIZE"],["\"OMG\" (call & response)","Oh my God — NewJeans"],["\"Hype boy…\"","…Neol wonhae — NewJeans"],["\"S-U-P-E-R…\"","Super — SEVENTEEN"]],
+  emoji:[["🧲","Magnetic — ILLIT"],["❤️➡️🪂","Love Dive — IVE"],["👧👖","OMG / NewJeans vibe — NewJeans"],["🍫7️⃣","Seven — Jung Kook"],["🌶️😋","Spicy — aespa"]],
+};
+
+/* ============ STATE ============ */
+function defaultState(){ return { clips:{}, players:[], cur:{round:0, clip:0} }; }
+function ensureStructure(s){
+  if(!s.clips) s.clips={};
+  ROUNDS.forEach(r=>{
+    if(!s.clips[r.key]) s.clips[r.key]=Array.from({length:clipCount(r)},()=>({url:"",a:[]}));
+    while(s.clips[r.key].length < clipCount(r)) s.clips[r.key].push({url:"",a:[]});
+  });
+  if(!s.players) s.players=[];
+  if(!s.cur) s.cur={round:0,clip:0};
+  // clamp current position in case rounds/counts changed
+  if(s.cur.round>=ROUNDS.length) s.cur.round=0;
+  const maxClip=clipCount(ROUNDS[s.cur.round])-1;
+  if(s.cur.clip>maxClip) s.cur.clip=0;
+  return s;
+}
+let state = ensureStructure(defaultState());
+
+/* ============ STORAGE (IndexedDB — no 5MB cap) ============ */
+const DB_NAME="kpopGameNightDB", STORE="state", KEY="main";
+let _db=null, _saveTimer=null;
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    if(_db) return resolve(_db);
+    const req=indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded=()=>{ req.result.createObjectStore(STORE); };
+    req.onsuccess=()=>{ _db=req.result; resolve(_db); };
+    req.onerror=()=>reject(req.error);
+  });
+}
+function save(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(dbPut,250); } // debounced
+function dbPut(){
+  openDB().then(db=>{
+    const tx=db.transaction(STORE,"readwrite");
+    tx.objectStore(STORE).put(JSON.parse(JSON.stringify(state)), KEY);
+  }).catch(()=>{ toast("Couldn't save automatically — use Save setup to back up."); });
+}
+function dbGet(){
+  return openDB().then(db=>new Promise((resolve)=>{
+    const req=db.transaction(STORE,"readonly").objectStore(STORE).get(KEY);
+    req.onsuccess=()=>resolve(req.result||null);
+    req.onerror=()=>resolve(null);
+  })).catch(()=>null);
+}
+function migrateFromLocalStorage(){
+  try{ const old=localStorage.getItem("kpopGameNight");
+    if(old){ const p=JSON.parse(old); localStorage.removeItem("kpopGameNight"); return p; } }catch(e){}
+  return null;
+}
+async function bootStorage(){
+  let loaded = await dbGet();
+  if(!loaded) loaded = migrateFromLocalStorage();
+  // if nothing saved in this browser yet, try the preloaded setup.json shipped with the app
+  if(!loaded){ loaded = await fetchPreloadedSetup(); if(loaded){ state=ensureStructure(loaded); dbPut(); } }
+  if(loaded){ state=ensureStructure(loaded); renderAll(); }
+  else dbPut();
+}
+// fetch setup.json sitting next to index.html (baked into the repo); null if absent
+async function fetchPreloadedSetup(){
+  try{
+    const res = await fetch("setup.json", {cache:"no-store"});
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(data && data.clips) return data;
+  }catch(e){}
+  return null;
+}
+// force-load the preloaded setup, overwriting local data (used by the reset button)
+async function loadPreloadedSetup(){
+  const data = await fetchPreloadedSetup();
+  if(!data){ toast("No preloaded setup.json found next to the app"); return; }
+  state = ensureStructure(data);
+  save(); renderSetup(); renderAll();
+  toast("Loaded the preloaded setup");
+}
+
+
+/* ============ HELPERS ============ */
+function ytId(input){
+  if(!input) return "";
+  input=input.trim();
+  if(/^[\w-]{11}$/.test(input)) return input;
+  const m = input.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/|\/v\/)([\w-]{11})/);
+  return m ? m[1] : "";
+}
+// parse "0:48", "1:12", or "48" into seconds; 0 if empty/invalid
+function parseStart(v){
+  if(!v) return 0;
+  v=String(v).trim();
+  if(/^\d+$/.test(v)) return parseInt(v,10);
+  const m=v.match(/^(\d+):(\d{1,2})$/);
+  if(m) return parseInt(m[1],10)*60 + parseInt(m[2],10);
+  return 0;
+}
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("show");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1900);
+}
+
+/* ============ RAIL ============ */
+function renderRail(){
+  const rail=document.getElementById("rail");
+  rail.innerHTML="";
+  ROUNDS.forEach((r,i)=>{
+    const filled = state.clips[r.key].some(c=>c.url || c.img1 || (c.a&&c.a[0]));
+    const chip=document.createElement("div");
+    chip.className="chip"+(i===state.cur.round?" active":"")+(filled&&i!==state.cur.round?" done":"");
+    chip.innerHTML=`<span class="rnum">R${i+1}</span><span class="emo">${r.emo}</span>${r.name}`;
+    chip.onclick=()=>{ state.cur={round:i,clip:0}; save(); renderAll(); };
+    rail.appendChild(chip);
+  });
+}
+
+/* ============ STAGE ============ */
+function renderStage(){
+  const r=ROUNDS[state.cur.round];
+  const clip=state.clips[r.key][state.cur.clip];
+  document.getElementById("roundEmo").textContent=r.emo;
+  document.getElementById("roundName").textContent=r.name;
+  document.getElementById("roundSub").textContent=r.sub;
+  document.getElementById("clipNow").textContent=state.cur.clip+1;
+  document.getElementById("clipTotal").textContent=clipCount(r);
+
+  const player=document.getElementById("player");
+  // fully tear down any existing YouTube player so the next Play builds a fresh one
+  clearTimeout(snipTimer);
+  clearFinale();
+  clearWinner();
+  if(ytPlayer){ try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
+  ytReady=false; ytBuilding=false;
+  emojiHintPlaying=false;
+  window._ytReadyQueue=null;
+  // clear everything except mask
+  [...player.querySelectorAll(".yt,.placeholder,.prompt-card,.idol-photo,.audio-cover,.finale-stage,.winner-stage")].forEach(e=>e.remove());
+  const mask=document.getElementById("chromeMask");
+  mask.classList.add("hidden"); // shown only while a video is loaded & guessing
+
+  const isText = (r.key==="lyric"||r.key==="emoji");
+  const promptText = isText ? (clip.a&&clip.a[0]?clip.a[0]:"") : "";
+
+  if(r.finaleMode){
+    const ph=document.createElement("div");
+    ph.className="placeholder finale-intro";
+    ph.innerHTML=`<div><div class="ph-emo">🎉</div><p>The grand finale. When you're ready, hit <b>Start finale</b> — the suspense builds on its own, then you tap for the reveal.</p></div>`;
+    player.appendChild(ph);
+  } else if(r.winnerMode){
+    const ph=document.createElement("div");
+    ph.className="placeholder";
+    ph.innerHTML=`<div><div class="ph-emo">🏆</div><p>The winner reveal. Hit <b>Reveal winner</b> — drumroll builds, then the podium counts up 3rd → 2nd → 1st, with the fanfare on the winner.</p></div>`;
+    player.appendChild(ph);
+  } else if(r.photoMode){
+    // idol round: show the GUESS photo (baby/blurred/silhouette)
+    const ph=document.createElement("div");
+    if(clip.img1){
+      ph.className="idol-photo guess";
+      ph.innerHTML=`<img src="${clip.img1.replace(/"/g,'&quot;')}" alt="guess photo"><div class="caption">Who's this idol?</div>`;
+    } else {
+      ph.className="placeholder";
+      ph.innerHTML=`<div><div class="ph-emo">➕</div><p>No photo added yet.</p><div class="hint">Open ⚙ Set up clips to paste a guess photo + reveal photo URL.</div></div>`;
+    }
+    player.appendChild(ph);
+  } else if(isText && promptText){
+    // TEXT PROMPT rounds show the prompt card by default
+    const card=document.createElement("div");
+    card.className="prompt-card";
+    if(r.key==="emoji"){
+      card.innerHTML=`<div><div class="kicker">Guess the song & artist</div><div class="emoji-line">${promptText}</div></div>`;
+    }else{
+      card.innerHTML=`<div><div class="kicker">Finish the lyric</div><div class="big">${promptText}</div></div>`;
+    }
+    player.appendChild(card);
+  } else {
+    // placeholder shown until Play pressed
+    const ph=document.createElement("div");
+    ph.className="placeholder";
+    if(clip.url){
+      ph.innerHTML=`<div><div class="ph-emo">${r.emo}</div><p>Ready. Hit <b>Play clip</b> — the video title stays hidden until you reveal.</p></div>`;
+    }else{
+      ph.innerHTML=`<div><div class="ph-emo">➕</div><p>No clip added yet for this slot.</p><div class="hint">Open ⚙ Set up clips to paste a YouTube link.</div></div>`;
+    }
+    player.appendChild(ph);
+  }
+
+  // answer box reset
+  const ab=document.getElementById("answerBox");
+  ab.classList.remove("show");
+  revealed=false;
+  clipStarted=false;
+  isPlaying=false;
+  snipStart=0;
+  document.getElementById("revealBtn").textContent="Reveal answer";
+  const playBtn=document.getElementById("playBtn");
+  const revealBtn=document.getElementById("revealBtn");
+  if(r.finaleMode){
+    // finale: Play button starts the sequence, Reveal hidden
+    playBtn.style.display="";
+    playBtn.disabled=false;
+    playBtn.textContent="🎉 Start finale";
+    revealBtn.style.display="none";
+  } else if(r.winnerMode){
+    playBtn.style.display="";
+    playBtn.disabled=false;
+    playBtn.textContent="🏆 Reveal winner";
+    revealBtn.style.display="none";
+  } else if(r.key==="emoji"){
+    // emoji: chorus-hint play button + reveal
+    revealBtn.style.display="";
+    playBtn.style.display="";
+    playBtn.disabled = !clip.url;
+    playBtn.textContent = "🎧 Play chorus (hint)";
+  } else if(r.photoMode){
+    revealBtn.style.display="";
+    playBtn.style.display="none";
+  } else {
+    revealBtn.style.display="";
+    playBtn.style.display="";
+    playBtn.disabled = !clip.url;
+    playBtn.textContent = r.audioOnly ? "▶ Play" : (isText ? "▶ Play video" : "▶ Play clip");
+  }
+
+  // prev/next disabled at edges of whole game
+  document.getElementById("prevBtn").disabled = (state.cur.round===0 && state.cur.clip===0);
+  const lastR = ROUNDS.length-1;
+  document.getElementById("nextBtn").disabled = (state.cur.round===lastR && state.cur.clip===clipCount(r)-1);
+
+  // snippet timing row only on audio-only round
+  document.getElementById("snipControls").classList.toggle("show", !!r.audioOnly);
+  // highlight the active preset (default 1s)
+  document.querySelectorAll(".btn.snip.preset").forEach(x=>{
+    x.classList.toggle("active", +x.dataset.sec===snipDuration);
+  });
+}
+
+let ytPlayer=null, ytReady=false, snipTimer=null, revealed=false, clipStarted=false, snipDuration=1, isPlaying=false, snipStart=0, ytBuilding=false, emojiHintPlaying=false;
+function playClip(onReadyExtra){
+  const r=ROUNDS[state.cur.round];
+  const clip=state.clips[r.key][state.cur.clip];
+  const id=ytId(clip.url);
+  if(!id){ toast("Add a YouTube link for this clip first"); return; }
+  if(ytBuilding){ return; } // already spinning up a player; ignore extra clicks
+  ytBuilding=true;
+  ytReady=false;
+  // tear down any prior player before building a new one
+  if(ytPlayer){ try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
+  const player=document.getElementById("player");
+  [...player.querySelectorAll(".yt,.placeholder,.prompt-card")].forEach(e=>e.remove());
+  const wrap=document.createElement("div");
+  wrap.className="yt";
+  const host=document.createElement("div");
+  host.id="ytHost";
+  wrap.appendChild(host);
+  player.appendChild(wrap);
+  // mask the top chrome (title/share) while guessing
+  document.getElementById("chromeMask").classList.remove("hidden");
+
+  // audio-only rounds: cover the whole video, sound still plays underneath
+  if(r.audioOnly){
+    const cover=document.createElement("div");
+    cover.className="audio-cover";
+    cover.id="audioCover";
+    cover.innerHTML=`<div><div class="ac-pulse">🎧</div><p>Audio playing — video hidden.<br>Hit <b>Reveal answer</b> to show it.</p></div>`;
+    player.appendChild(cover);
+  }
+
+  const wantMuted = false; // all rounds play audible
+  const showFallback=()=>{
+    document.getElementById("chromeMask").classList.add("hidden");
+    [...player.querySelectorAll(".yt,.placeholder,.prompt-card")].forEach(e=>e.remove());
+    const fb=document.createElement("div");
+    fb.className="placeholder";
+    const watch=`https://www.youtube.com/watch?v=${id}`;
+    fb.innerHTML=`<div>
+      <div class="ph-emo">▶️</div>
+      <p>This video can't play inside the app. Open it in a new tab and screen-share that tab instead.</p>
+      <a href="${watch}" target="_blank" rel="noopener"
+         style="display:inline-block;margin-top:16px;padding:12px 22px;border-radius:12px;
+         background:linear-gradient(120deg,#ff2e88,#7a5cff);color:#fff;font-weight:700;
+         text-decoration:none;font-size:14px">Open clip in new tab ↗</a>
+    </div>`;
+    player.appendChild(fb);
+  };
+  const build=()=>{
+    if(ytPlayer && ytPlayer.destroy){ try{ytPlayer.destroy()}catch(e){} }
+    ytPlayer = new YT.Player("ytHost",{
+      videoId:id, host:"https://www.youtube.com",
+      playerVars:{autoplay:1, mute:1, rel:0, modestbranding:1, iv_load_policy:3, playsinline:1, controls:1, origin:location.origin},
+      events:{
+        onReady:(e)=>{
+          ytReady=true; ytBuilding=false;
+          if(typeof onReadyExtra==="function"){ onReadyExtra(e.target); return; }
+          e.target.playVideo();
+          // unmute shortly after start (browsers require muted-start for autoplay)
+          if(!wantMuted){ setTimeout(()=>{ try{e.target.unMute(); e.target.setVolume(100);}catch(err){} }, 350); }
+        },
+        onError:()=>{ ytBuilding=false; showFallback(); }
+      }
+    });
+  };
+  if(window.YT && window.YT.Player){ build(); }
+  else { window._ytReadyQueue = build; } // onYouTubeIframeAPIReady will fire it
+}
+
+// play `sec` seconds starting from snipStart, then pause (replayable from the same spot)
+function playSnippet(sec){
+  clearTimeout(snipTimer);
+  const go=(p)=>{
+    try{
+      p.seekTo(snipStart, true);   // always start the snippet from the tracked point
+      p.unMute(); p.setVolume(100);
+      p.playVideo();
+      setPlaying(true);
+      snipTimer=setTimeout(()=>{ try{p.pauseVideo();}catch(e){} setPlaying(false); }, sec*1000);
+    }catch(e){}
+  };
+  if(ytPlayer && ytReady){ go(ytPlayer); }
+  else { playClip((p)=>go(p)); } // load first, then snippet on ready
+}
+// jump the snippet start point forward 5s (next Play resumes from here)
+function skipForward(){
+  if(!ytPlayer || !ytReady){ toast("Play a clip first"); return; }
+  clearTimeout(snipTimer);
+  snipStart = (snipStart||0) + 5;
+  try{ ytPlayer.seekTo(snipStart, true); ytPlayer.pauseVideo(); }catch(e){}
+  setPlaying(false);
+  toast(`Skipped to ${snipStart}s`);
+}
+function pausePlayer(){
+  clearTimeout(snipTimer);
+  if(ytPlayer && ytReady){ try{ytPlayer.pauseVideo();}catch(e){} }
+  setPlaying(false);
+}
+function setPlaying(v){
+  isPlaying=v;
+  const r=ROUNDS[state.cur.round];
+  if(r.audioOnly){ document.getElementById("playBtn").textContent = v ? "⏸ Pause" : "▶ Play"; }
+}
+
+// short celebratory "ta-da" chime via Web Audio (no external file)
+let audioCtx=null;
+function playRevealSound(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") audioCtx.resume();
+    const now=audioCtx.currentTime;
+    // two quick rising notes then a bright resolve
+    const notes=[[523.25,0,0.12],[659.25,0.10,0.12],[783.99,0.20,0.28]]; // C5 E5 G5
+    notes.forEach(([freq,t,dur])=>{
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type="triangle"; o.frequency.value=freq;
+      o.connect(g); g.connect(audioCtx.destination);
+      const s=now+t;
+      g.gain.setValueAtTime(0.0001,s);
+      g.gain.exponentialRampToValueAtTime(0.25,s+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,s+dur);
+      o.start(s); o.stop(s+dur+0.02);
+    });
+  }catch(e){}
+}
+
+function reveal(){
+  if(revealed){ hideAnswer(); return; }
+  playRevealSound();
+  const r=ROUNDS[state.cur.round];
+  const clip=state.clips[r.key][state.cur.clip];
+  clearTimeout(snipTimer);
+  // drop the mask so title/full video shows
+  document.getElementById("chromeMask").classList.add("hidden");
+  // uncover audio-only rounds so the video becomes visible
+  const cover=document.getElementById("audioCover");
+  if(cover){ cover.classList.add("gone"); }
+  // photo rounds: swap the guess photo for the current photo
+  if(r.photoMode){
+    const player=document.getElementById("player");
+    const cur=player.querySelector(".idol-photo");
+    if(clip.img2){
+      const now=document.createElement("div");
+      now.className="idol-photo now";
+      now.innerHTML=`<img src="${clip.img2.replace(/"/g,'&quot;')}" alt="reveal photo"><div class="caption">✨ Reveal</div>`;
+      if(cur) cur.replaceWith(now); else player.appendChild(now);
+    }
+  }
+  const ab=document.getElementById("answerBox");
+  const val=document.getElementById("answerVal");
+  const isText=(r.key==="lyric"||r.key==="emoji");
+  let main="", sub="";
+  if(r.key==="emoji"){
+    main = (clip.a&&clip.a[1])?clip.a[1]:"(add song in setup)";
+    sub  = (clip.a&&clip.a[2])?clip.a[2]:"";
+    // play the video (from chorus start) on reveal
+    playEmojiVideo(clip);
+  }
+  else if(isText){ main = (clip.a&&clip.a[1])?clip.a[1]:"(add answer in setup)"; }
+  else if(r.key==="onesec"){ main=(clip.a&&clip.a[0])?clip.a[0]:"(add song in setup)"; sub=(clip.a&&clip.a[1])?("Group: "+clip.a[1]):""; }
+  else { main=(clip.a&&clip.a[0])?clip.a[0]:"(add answer in setup)"; }
+  val.innerHTML = main + (sub?`<small>${sub}</small>`:"");
+  ab.classList.add("show");
+  revealed=true;
+  document.getElementById("revealBtn").textContent="Hide answer";
+}
+
+// load and play the emoji round's video starting at its chorus time
+function playEmojiVideo(clip){
+  const id=ytId(clip.url);
+  if(!id) return; // no video linked; just show the text answer
+  const start=parseStart(clip.start);
+  const player=document.getElementById("player");
+  [...player.querySelectorAll(".yt,.placeholder,.prompt-card")].forEach(e=>e.remove());
+  if(ytPlayer){ try{ytPlayer.destroy();}catch(e){} ytPlayer=null; }
+  ytReady=false; ytBuilding=true; window._ytReadyQueue=null;
+  const wrap=document.createElement("div"); wrap.className="yt";
+  const host=document.createElement("div"); host.id="ytHost";
+  wrap.appendChild(host); player.appendChild(wrap);
+  const build=()=>{
+    ytPlayer=new YT.Player("ytHost",{
+      videoId:id, host:"https://www.youtube.com",
+      playerVars:{autoplay:1, mute:1, start:start, rel:0, modestbranding:1, iv_load_policy:3, playsinline:1, controls:1, origin:location.origin},
+      events:{
+        onReady:(e)=>{ ytReady=true; ytBuilding=false;
+          e.target.seekTo(start,true); e.target.playVideo();
+          setTimeout(()=>{ try{e.target.unMute(); e.target.setVolume(100);}catch(err){} },350);
+        },
+        onError:()=>{ ytBuilding=false; }
+      }
+    });
+  };
+  if(window.YT && window.YT.Player){ build(); } else { window._ytReadyQueue=build; }
+}
+
+// play the chorus as an AUDIO-ONLY hint (video hidden behind the emoji prompt)
+function playEmojiChorus(){
+  const r=ROUNDS[state.cur.round];
+  const clip=state.clips[r.key][state.cur.clip];
+  const id=ytId(clip.url);
+  if(!id){ toast("Add a YouTube link for this clip first"); return; }
+  const start=parseStart(clip.start);
+  const btn=document.getElementById("playBtn");
+
+  // toggle: if already playing the hint, pause it
+  if(emojiHintPlaying && ytPlayer && ytReady){
+    try{ ytPlayer.pauseVideo(); }catch(e){}
+    emojiHintPlaying=false; btn.textContent="🎧 Play chorus (hint)";
+    return;
+  }
+  // if player already loaded for this clip, just replay from chorus
+  if(ytPlayer && ytReady){
+    try{ ytPlayer.seekTo(start,true); ytPlayer.unMute(); ytPlayer.setVolume(100); ytPlayer.playVideo(); }catch(e){}
+    emojiHintPlaying=true; btn.textContent="⏸ Pause chorus";
+    return;
+  }
+  // build a hidden audio player (keep emoji prompt on screen)
+  const player=document.getElementById("player");
+  if(ytPlayer){ try{ytPlayer.destroy();}catch(e){} ytPlayer=null; }
+  ytReady=false; ytBuilding=true; window._ytReadyQueue=null;
+  const wrap=document.createElement("div"); wrap.className="yt";
+  wrap.style.position="absolute"; wrap.style.opacity="0"; wrap.style.pointerEvents="none"; // hidden; audio only
+  const host=document.createElement("div"); host.id="ytHost";
+  wrap.appendChild(host); player.appendChild(wrap);
+  const build=()=>{
+    ytPlayer=new YT.Player("ytHost",{
+      videoId:id, host:"https://www.youtube.com",
+      playerVars:{autoplay:1, mute:1, start:start, rel:0, modestbranding:1, iv_load_policy:3, playsinline:1, controls:1, origin:location.origin},
+      events:{
+        onReady:(e)=>{ ytReady=true; ytBuilding=false;
+          e.target.seekTo(start,true); e.target.playVideo();
+          setTimeout(()=>{ try{e.target.unMute(); e.target.setVolume(100);}catch(err){} },350);
+          emojiHintPlaying=true; btn.textContent="⏸ Pause chorus";
+        },
+        onError:()=>{ ytBuilding=false; emojiHintPlaying=false; btn.textContent="🎧 Play chorus (hint)"; toast("Couldn't play this clip"); }
+      }
+    });
+  };
+  if(window.YT && window.YT.Player){ build(); } else { window._ytReadyQueue=build; }
+}
+
+function hideAnswer(){
+  const r=ROUNDS[state.cur.round];
+  document.getElementById("answerBox").classList.remove("show");
+  // emoji round: tear down the reveal video and restore the emoji prompt
+  if(r.key==="emoji"){
+    if(ytPlayer){ try{ytPlayer.destroy();}catch(e){} ytPlayer=null; }
+    ytReady=false; ytBuilding=false;
+    const clip=state.clips[r.key][state.cur.clip];
+    const player=document.getElementById("player");
+    [...player.querySelectorAll(".yt,.placeholder,.prompt-card")].forEach(e=>e.remove());
+    const prompt=(clip.a&&clip.a[0])?clip.a[0]:"";
+    const card=document.createElement("div");
+    card.className="prompt-card";
+    card.innerHTML=`<div><div class="kicker">Guess the song & artist</div><div class="emoji-line">${prompt}</div></div>`;
+    player.appendChild(card);
+  }
+  // photo rounds: swap current photo back to the guess photo
+  if(r.photoMode){
+    const clip=state.clips[r.key][state.cur.clip];
+    const player=document.getElementById("player");
+    const cur=player.querySelector(".idol-photo");
+    if(clip.img1){
+      const g=document.createElement("div");
+      g.className="idol-photo guess";
+      g.innerHTML=`<img src="${clip.img1.replace(/"/g,'&quot;')}" alt="guess photo"><div class="caption">Who's this idol?</div>`;
+      if(cur) cur.replaceWith(g); else player.appendChild(g);
+    }
+  }
+  // re-cover the video on audio-only rounds
+  if(r.audioOnly){
+    let cover=document.getElementById("audioCover");
+    if(cover){ cover.classList.remove("gone"); }
+    else {
+      const player=document.getElementById("player");
+      if(player.querySelector(".yt")){
+        cover=document.createElement("div");
+        cover.className="audio-cover"; cover.id="audioCover";
+        cover.innerHTML=`<div><div class="ac-pulse">🎧</div><p>Audio playing — video hidden.<br>Hit <b>Reveal answer</b> to show it.</p></div>`;
+        player.appendChild(cover);
+      }
+    }
+    document.getElementById("chromeMask").classList.remove("hidden");
+  }
+  revealed=false;
+  document.getElementById("revealBtn").textContent="Reveal answer";
+}
+
+function step(dir){
+  let {round,clip}=state.cur;
+  clip+=dir;
+  const cur=clipCount(ROUNDS[round]);
+  if(clip>=cur){ if(round<ROUNDS.length-1){round++;clip=0;} else {clip=cur-1;} }
+  if(clip<0){ if(round>0){round--;clip=clipCount(ROUNDS[round])-1;} else {clip=0;} }
+  state.cur={round,clip}; save(); renderAll();
+}
+
+/* ============ FINALE SEQUENCE ============ */
+let finaleTimers=[];
+function clearFinale(){ finaleTimers.forEach(clearTimeout); finaleTimers=[]; stopDrumroll(); }
+function startFinale(){
+  clearFinale();
+  // unlock audio on this user gesture so timed sounds (drumroll) can play later
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") audioCtx.resume();
+    const b=audioCtx.createBuffer(1,1,audioCtx.sampleRate);
+    const s=audioCtx.createBufferSource(); s.buffer=b; s.connect(audioCtx.destination); s.start(0);
+    // prime the drumroll audio within the gesture, then pause it (so timed play works)
+    drumAudio = new Audio("drumroll.mp3");
+    drumAudio.loop = true; drumAudio.volume = 0.85;
+    drumAudio.play().then(()=>{ drumAudio.pause(); drumAudio.currentTime=0; }).catch(()=>{});
+  }catch(e){}
+  const player=document.getElementById("player");
+  [...player.querySelectorAll(".placeholder,.finale-stage")].forEach(e=>e.remove());
+  const stage=document.createElement("div");
+  stage.className="finale-stage";
+  stage.innerHTML=`<div class="beat" id="finaleBeat"></div>`;
+  player.appendChild(stage);
+  const beat=stage.querySelector("#finaleBeat");
+
+  const show=(html)=>{ beat.classList.remove("in");
+    setTimeout(()=>{ beat.innerHTML=html; void beat.offsetWidth; beat.classList.add("in"); }, 260); };
+
+  // auto-building beats
+  show(`<div class="finale-heart"></div><div class="finale-line">Are you guys ready?</div>`);
+  playTone(392,0.5); // low tension note
+  finaleTimers.push(setTimeout(()=>{
+    show(`<div class="finale-line">Ready for the <span class="accent">final</span> question?</div>`);
+    playTone(440,0.5);
+  }, 2600));
+  finaleTimers.push(setTimeout(()=>{
+    show(`<div class="finale-line">Are you going to…</div><div class="finale-tap">tap anywhere to reveal</div>`);
+    playTone(494,0.6);
+    startDrumroll();       // rolling drums build until the reveal
+    armFinalReveal(stage);
+  }, 5200));
+}
+function armFinalReveal(stage){
+  const doReveal=()=>{
+    stage.removeEventListener("click", doReveal);
+    document.removeEventListener("keydown", keyReveal);
+    stopDrumroll();
+    crashCymbal();          // big crash as the answer drops
+    const beat=stage.querySelector("#finaleBeat");
+    beat.classList.remove("in");
+    setTimeout(()=>{
+      beat.innerHTML=`<div class="finale-final pop">BTS?!</div>`;
+      void beat.offsetWidth; beat.classList.add("in");
+      playRevealSound();
+      setTimeout(playRevealSound, 180); // double chime for extra punch
+    }, 220);
+  };
+  const keyReveal=(e)=>{ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); doReveal(); } };
+  stage.addEventListener("click", doReveal);
+  document.addEventListener("keydown", keyReveal);
+}
+// simple single tone for the buildup
+function playTone(freq,dur){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") audioCtx.resume();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type="sine"; o.frequency.value=freq;
+    o.connect(g); g.connect(audioCtx.destination);
+    const now=audioCtx.currentTime;
+    g.gain.setValueAtTime(0.0001,now);
+    g.gain.exponentialRampToValueAtTime(0.14,now+0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001,now+dur);
+    o.start(now); o.stop(now+dur+0.05);
+  }catch(e){}
+}
+
+// ---- drumroll: plays the real drumroll.mp3 file, looping until reveal ----
+let drumAudio=null;
+function startDrumroll(){
+  try{
+    if(!drumAudio){ drumAudio = new Audio("drumroll.mp3"); drumAudio.loop=true; drumAudio.volume=0.85; }
+    drumAudio.onerror=()=>{ toast("Couldn't load drumroll.mp3 — check it's in the served folder"); };
+    drumAudio.currentTime = 0;
+    const p=drumAudio.play();
+    if(p) p.catch(err=>{ toast("Drumroll blocked: "+(err&&err.name||"error")); });
+  }catch(e){ toast("Drumroll error"); }
+}
+function stopDrumroll(){
+  if(drumAudio){ try{ drumAudio.pause(); drumAudio.currentTime=0; }catch(e){} }
+}
+// big cymbal crash on the reveal
+function crashCymbal(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") audioCtx.resume();
+    const dur=1.1;
+    const buf=audioCtx.createBuffer(1, audioCtx.sampleRate*dur, audioCtx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<data.length;i++){ data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,1.4); }
+    const src=audioCtx.createBufferSource(); src.buffer=buf;
+    const hp=audioCtx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=5000;
+    const g=audioCtx.createGain(); g.gain.value=0.35;
+    src.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
+    src.start();
+  }catch(e){}
+}
+
+/* ============ WINNER REVEAL ============ */
+let winnerTimers=[], victoryAudio=null;
+function clearWinner(){
+  winnerTimers.forEach(clearTimeout); winnerTimers=[];
+  stopDrumroll();
+  if(victoryAudio){ try{victoryAudio.pause(); victoryAudio.currentTime=0;}catch(e){} }
+}
+function startWinner(){
+  clearWinner();
+  // unlock/prime audio on this gesture
+  try{
+    victoryAudio = new Audio("victory.mp3"); victoryAudio.volume=0.9;
+    victoryAudio.play().then(()=>{ victoryAudio.pause(); victoryAudio.currentTime=0; }).catch(()=>{});
+    if(!drumAudio){ drumAudio=new Audio("drumroll.mp3"); drumAudio.loop=true; drumAudio.volume=0.85; }
+    drumAudio.play().then(()=>{ drumAudio.pause(); drumAudio.currentTime=0; }).catch(()=>{});
+  }catch(e){}
+
+  const player=document.getElementById("player");
+  [...player.querySelectorAll(".placeholder,.winner-stage")].forEach(e=>e.remove());
+  const stage=document.createElement("div");
+  stage.className="winner-stage";
+  player.appendChild(stage);
+
+  // sort players by score desc; take top 3
+  const ranked=[...state.players].filter(p=>p).sort((a,b)=>b.score-a.score);
+  if(ranked.length===0){
+    stage.innerHTML=`<div class="beat in"><div class="ph-emo">🏆</div><div class="no-players">No players on the scoreboard yet. Add players and give out points, then reveal the winner.</div></div>`;
+    return;
+  }
+  const top3=ranked.slice(0,3);
+
+  // drumroll builds, then podium fills 3rd -> 2nd -> 1st
+  startDrumroll();
+  const beat=document.createElement("div"); beat.className="beat in";
+  beat.innerHTML=`<div class="winner-label">And the results are…</div>
+    <div class="podium" id="podium"></div>`;
+  stage.appendChild(beat);
+  const podium=beat.querySelector("#podium");
+
+  // build podium slots in classic order (left→right: 2nd, 1st, 3rd)
+  const byPlace={1:top3[0], 2:top3[1], 3:top3[2]};
+  const displayOrder=[2,1,3];
+  const slots={};
+  displayOrder.forEach(place=>{
+    const p=byPlace[place];
+    const el=document.createElement("div");
+    el.className=`pod p${place}`;
+    if(p){
+      const medal = place===1?"🥇":place===2?"🥈":"🥉";
+      el.innerHTML=`<div class="medal">${medal}</div><div class="pname">${escapeHtml(p.name)}</div><div class="pscore">${p.score} pts</div><div class="rank">${place}</div>`;
+    } else {
+      el.style.visibility="hidden"; // fewer than 3 players
+    }
+    podium.appendChild(el);
+    slots[place]=el;
+  });
+
+  // reveal 3rd, then 2nd, then 1st (winner) with the fanfare
+  const revealPlace=(place, delay, isWinner)=>{
+    winnerTimers.push(setTimeout(()=>{
+      if(byPlace[place]){ slots[place].classList.add("in"); }
+      if(isWinner){
+        stopDrumroll();
+        try{ if(victoryAudio){ victoryAudio.currentTime=0; victoryAudio.play().catch(()=>{ crashCymbal(); }); } else crashCymbal(); }catch(e){ crashCymbal(); }
+        // big winner banner above the podium
+        const champ=byPlace[1];
+        const banner=document.createElement("div");
+        banner.className="beat";
+        banner.innerHTML=`<div class="winner-crown">👑</div><div class="winner-label">Winner</div><div class="winner-name">${escapeHtml(champ.name)}</div>`;
+        beat.insertBefore(banner, beat.firstChild);
+        void banner.offsetWidth; banner.classList.add("in");
+      }
+    }, delay));
+  };
+  // if fewer than 3, skip missing places but keep pacing
+  revealPlace(3, 2600, false);
+  revealPlace(2, 4200, false);
+  revealPlace(1, 6000, true);
+}
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ============ SCOREBOARD ============ */
+function renderScores(){
+  const box=document.getElementById("players");
+  box.innerHTML="";
+  const max = state.players.length ? Math.max(...state.players.map(p=>p.score)) : 0;
+  state.players.forEach((p,i)=>{
+    const lead = p.score>0 && p.score===max;
+    const c=document.createElement("div");
+    c.className="pcard"+(lead?" lead":"");
+    c.innerHTML=`
+      <div class="pname">${p.name}</div>
+      <div class="pscore">${p.score}</div>
+      <div class="adj">
+        <button class="minus" data-i="${i}" data-d="-1">−</button>
+        <button class="plus" data-i="${i}" data-d="1">+</button>
+      </div>
+      <span class="remove" data-rm="${i}">remove</span>`;
+    box.appendChild(c);
+  });
+  const add=document.createElement("div");
+  add.className="add-player";
+  add.innerHTML=`<span class="pl">＋</span>Add player`;
+  add.onclick=()=>{
+    const name=prompt("Player / team name:");
+    if(name&&name.trim()){ state.players.push({name:name.trim(),score:0}); save(); renderScores(); }
+  };
+  box.appendChild(add);
+
+  box.querySelectorAll(".adj button").forEach(b=>{
+    b.onclick=()=>{ const i=+b.dataset.i,d=+b.dataset.d; state.players[i].score+=d; save(); renderScores(); };
+  });
+  box.querySelectorAll(".remove").forEach(x=>{
+    x.onclick=()=>{ const i=+x.dataset.rm; if(confirm("Remove "+state.players[i].name+"?")){state.players.splice(i,1);save();renderScores();} };
+  });
+}
+
+/* ============ SETUP ============ */
+function renderSetup(){
+  const box=document.getElementById("setupRounds");
+  box.innerHTML="";
+  ROUNDS.forEach((r,ri)=>{
+    const filled=state.clips[r.key].filter(c=>c.url||c.img1||(c.a&&c.a[0])).length;
+    const det=document.createElement("details");
+    det.className="setup-round";
+    if(ri===state.cur.round) det.open=true;
+    det.innerHTML=`<summary><span class="emo">${r.emo}</span> Round ${ri+1}: ${r.name}<span class="cnt">${filled}/${clipCount(r)}</span></summary>`;
+    for(let i=0;i<clipCount(r);i++){
+      const clip=state.clips[r.key][i];
+      const row=document.createElement("div");
+      row.className="clip-row";
+      const esc=(s)=>(s||'').replace(/"/g,'&quot;');
+
+      if(r.photoMode){
+        // idol round: upload guess photo + reveal photo, plus answer text
+        const thumb=(src,label)=> src
+          ? `<img class="uthumb" src="${esc(src)}" alt="${label}">`
+          : `<div class="uthumb empty">${label}</div>`;
+        row.innerHTML=`
+          <div class="rlabel">Idol ${i+1}</div>
+          <div class="uploads">
+            <div class="ubox">
+              ${thumb(clip.img1,"Guess photo")}
+              <label class="ubtn">${clip.img1?"Replace":"Upload"} guess photo
+                <input type="file" accept="image/*" data-up="1" data-r="${r.key}" data-i="${i}" hidden>
+              </label>
+              ${clip.img1?`<button class="uclear" data-clear="1" data-r="${r.key}" data-i="${i}">remove</button>`:""}
+            </div>
+            <div class="ubox">
+              ${thumb(clip.img2,"Reveal photo")}
+              <label class="ubtn">${clip.img2?"Replace":"Upload"} reveal photo
+                <input type="file" accept="image/*" data-up="2" data-r="${r.key}" data-i="${i}" hidden>
+              </label>
+              ${clip.img2?`<button class="uclear" data-clear="2" data-r="${r.key}" data-i="${i}">remove</button>`:""}
+            </div>
+          </div>
+          <input data-r="${r.key}" data-i="${i}" data-f="0" placeholder="${r.fields[0]}" value="${esc(clip.a&&clip.a[0])}">`;
+        det.appendChild(row);
+        continue;
+      }
+
+      // render each answer field (field 0 is the on-screen prompt for text rounds)
+      let fieldInputs="";
+      const isTextRound = (r.key==="lyric"||r.key==="emoji");
+      // for text rounds: prompt (field 0) shown FIRST, then link, then remaining answers
+      let promptFirst="", restFields="";
+      if(isTextRound){
+        promptFirst=`<input data-r="${r.key}" data-i="${i}" data-f="0" placeholder="${r.fields[0]}" value="${esc(clip.a&&clip.a[0])}">`;
+        if(r.fields.length>=3){
+          restFields=`<div class="two">
+            <input data-r="${r.key}" data-i="${i}" data-f="1" placeholder="${r.fields[1]}" value="${esc(clip.a&&clip.a[1])}">
+            <input data-r="${r.key}" data-i="${i}" data-f="2" placeholder="${r.fields[2]}" value="${esc(clip.a&&clip.a[2])}">
+          </div>`;
+        } else if(r.fields.length===2){
+          restFields=`<input data-r="${r.key}" data-i="${i}" data-f="1" placeholder="${r.fields[1]}" value="${esc(clip.a&&clip.a[1])}">`;
+        }
+      } else {
+        if(r.fields.length>=3){
+          restFields=`
+            <input data-r="${r.key}" data-i="${i}" data-f="0" placeholder="${r.fields[0]}" value="${esc(clip.a&&clip.a[0])}">
+            <div class="two">
+              <input data-r="${r.key}" data-i="${i}" data-f="1" placeholder="${r.fields[1]}" value="${esc(clip.a&&clip.a[1])}">
+              <input data-r="${r.key}" data-i="${i}" data-f="2" placeholder="${r.fields[2]}" value="${esc(clip.a&&clip.a[2])}">
+            </div>`;
+        } else if(r.fields.length===2){
+          restFields=`<div class="two">
+            <input data-r="${r.key}" data-i="${i}" data-f="0" placeholder="${r.fields[0]}" value="${esc(clip.a&&clip.a[0])}">
+            <input data-r="${r.key}" data-i="${i}" data-f="1" placeholder="${r.fields[1]}" value="${esc(clip.a&&clip.a[1])}">
+          </div>`;
+        } else {
+          restFields=`<input data-r="${r.key}" data-i="${i}" data-f="0" placeholder="${r.fields[0]}" value="${esc(clip.a&&clip.a[0])}">`;
+        }
+      }
+      // optional chorus start-time field
+      const startField = r.hasStart
+        ? `<input class="start-input" data-r="${r.key}" data-i="${i}" data-start="1" placeholder="Start video at (e.g. 0:48 or 48)" value="${esc(clip.start)}">`
+        : "";
+      const urlField=`<input data-r="${r.key}" data-i="${i}" data-url="1" placeholder="YouTube link or video ID" value="${esc(clip.url)}">`;
+      row.innerHTML=`
+        <div class="rlabel">Clip ${i+1}</div>
+        ${promptFirst}
+        ${urlField}
+        ${restFields}
+        ${startField}`;
+      det.appendChild(row);
+    }
+    box.appendChild(det);
+  });
+
+  // text inputs (skip file inputs)
+  box.querySelectorAll("input:not([type=file])").forEach(inp=>{
+    inp.oninput=()=>{
+      const rk=inp.dataset.r, i=+inp.dataset.i;
+      const clip=state.clips[rk][i];
+      if(inp.dataset.url){ clip.url=inp.value; }
+      else if(inp.dataset.start){ clip.start=inp.value; }
+      else { const f=+inp.dataset.f; clip.a[f]=inp.value; }
+      save();
+      renderRail();
+    };
+  });
+
+  // photo uploads: read file, downscale, store as base64
+  box.querySelectorAll("input[type=file][data-up]").forEach(inp=>{
+    inp.onchange=()=>{
+      const file=inp.files&&inp.files[0];
+      if(!file) return;
+      const rk=inp.dataset.r, i=+inp.dataset.i, slot=inp.dataset.up;
+      downscaleImage(file, 900, (dataUrl)=>{
+        const clip=state.clips[rk][i];
+        if(slot==="1") clip.img1=dataUrl; else clip.img2=dataUrl;
+        saveSafely();
+        renderSetup(); renderRail();
+      });
+    };
+  });
+
+  // remove an uploaded photo
+  box.querySelectorAll("[data-clear]").forEach(btn=>{
+    btn.onclick=()=>{
+      const rk=btn.dataset.r, i=+btn.dataset.i, slot=btn.dataset.clear;
+      const clip=state.clips[rk][i];
+      if(slot==="1") clip.img1=""; else clip.img2="";
+      saveSafely();
+      renderSetup(); renderRail();
+    };
+  });
+}
+
+// downscale an image file to max dimension, return JPEG base64
+function downscaleImage(file, maxDim, cb){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      let {width:w, height:h}=img;
+      if(w>h && w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; }
+      else if(h>=w && h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; }
+      const c=document.createElement("canvas");
+      c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      cb(c.toDataURL("image/jpeg",0.82));
+    };
+    img.onerror=()=>{ toast("Couldn't read that image"); };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// save, but warn gracefully if localStorage is full (many base64 images)
+function saveSafely(){ save(); }
+
+/* ============ WIRE UP ============ */
+function renderAll(){ renderRail(); renderStage(); renderScores(); }
+
+document.getElementById("playBtn").onclick=()=>{
+  const r=ROUNDS[state.cur.round];
+  if(r.finaleMode){ startFinale(); return; }
+  if(r.winnerMode){ startWinner(); return; }
+  if(r.key==="emoji"){ playEmojiChorus(); return; }
+  if(r.audioOnly){
+    if(isPlaying){ pausePlayer(); return; }  // toggle pause
+    clipStarted=true;
+    playSnippet(snipDuration);               // always replays from snipStart
+  } else { playClip(); }
+};
+document.getElementById("revealBtn").onclick=reveal;
+// presets just SELECT the snippet length and stay highlighted
+document.querySelectorAll(".btn.snip.preset").forEach(b=>{
+  b.onclick=()=>{
+    snipDuration=+b.dataset.sec;
+    document.querySelectorAll(".btn.snip.preset").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+  };
+});
+document.getElementById("skipBtn").onclick=skipForward;
+document.getElementById("prevBtn").onclick=()=>step(-1);
+document.getElementById("nextBtn").onclick=()=>step(1);
+document.getElementById("resetScores").onclick=()=>{
+  if(confirm("Reset all scores to 0?")){ state.players.forEach(p=>p.score=0); save(); renderScores(); }
+};
+document.getElementById("setupToggle").onclick=()=>{
+  const s=document.getElementById("setup");
+  s.classList.toggle("open");
+  if(s.classList.contains("open")){ renderSetup(); s.scrollIntoView({behavior:"smooth"}); }
+};
+document.getElementById("doneSetup").onclick=()=>{
+  document.getElementById("setup").classList.remove("open");
+  renderAll(); window.scrollTo({top:0,behavior:"smooth"});
+};
+document.getElementById("loadSample").onclick=()=>{
+  ROUNDS.forEach(r=>{ SAMPLE[r.key].forEach((a,i)=>{ state.clips[r.key][i].a=[...a]; }); });
+  save(); renderSetup(); renderRail(); toast("Sample answers loaded — add your own links");
+};
+// Save entire setup (links, answers, photos, scores) to a portable .json file
+document.getElementById("saveFile").onclick=()=>{
+  const blob=new Blob([JSON.stringify(state)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const stamp=new Date().toISOString().slice(0,16).replace(/[:T]/g,"-");
+  a.href=url; a.download=`kpop-game-setup-${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast("Setup saved to your Downloads");
+};
+// Load a setup file, replacing current state
+document.getElementById("loadFileInput").onchange=(e)=>{
+  const file=e.target.files&&e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const loaded=JSON.parse(reader.result);
+      if(!loaded || !loaded.clips) throw new Error("bad file");
+      state=ensureStructure(loaded);
+      save(); renderSetup(); renderAll();
+      toast("Setup loaded from file");
+    }catch(err){ toast("That doesn't look like a valid setup file"); }
+    e.target.value="";
+  };
+  reader.readAsText(file);
+};
+document.getElementById("clearAll").onclick=()=>{
+  if(confirm("Clear all clips and answers? (scores stay)")){
+    ROUNDS.forEach(r=>{ state.clips[r.key]=Array.from({length:clipCount(r)},()=>({url:"",a:[]})); });
+    save(); renderSetup(); renderAll(); toast("Cleared");
+  }
+};
+document.getElementById("loadPreloaded").onclick=()=>{
+  if(confirm("Replace everything with the preloaded setup from the app? This overwrites your current clips, answers, and photos.")){
+    loadPreloadedSetup();
+  }
+};
+
+// keyboard: left/right nav, space play, R reveal
+document.addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT") return;
+  const r=ROUNDS[state.cur.round];
+  if(e.key==="ArrowRight"){step(1);}
+  else if(e.key==="ArrowLeft"){step(-1);}
+  else if(e.key===" "){
+    e.preventDefault();
+    if(r.finaleMode || r.winnerMode){ return; } // their own controls handle it
+    document.getElementById("playBtn").click();
+  }
+  else if(e.key.toLowerCase()==="r"){ if(!r.finaleMode && !r.winnerMode) reveal(); }
+});
+
+renderAll();
+
+// flush any pending debounced save when leaving/hiding the page
+window.addEventListener("pagehide", ()=>{ clearTimeout(_saveTimer); dbPut(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden"){ clearTimeout(_saveTimer); dbPut(); } });
+
+// load saved data from IndexedDB (async), seed default teams only if brand new
+bootStorage().then(()=>{
+  if(state.players.length===0){
+    state.players=[{name:"Team 1",score:0},{name:"Team 2",score:0}];
+    save(); renderScores();
+  }
+});
+</script>
+</body>
+</html>
