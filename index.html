@@ -240,6 +240,19 @@
   }
   .add-player:hover{border-color:var(--cyber);color:var(--cyber)}
   .add-player .pl{font-size:26px}
+  .add-player.editing{cursor:default;gap:10px;padding:16px}
+  .add-player.editing:hover{border-color:var(--line);color:var(--muted)}
+  .add-player-input{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;
+    color:var(--paper);font:inherit;font-weight:600;font-size:15px;padding:10px 12px;text-align:center;outline:none
+  }
+  .add-player-input:focus{border-color:var(--cyber)}
+  .add-player-actions{display:flex;gap:8px;width:100%}
+  .add-player-actions button{
+    flex:1;border:none;border-radius:10px;cursor:pointer;font:inherit;font-weight:700;font-size:13px;padding:9px 0
+  }
+  .add-player-actions .add-ok{background:var(--cyber);color:var(--ink)}
+  .add-player-actions .add-cancel{background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
 
   /* ---------- SETUP PANEL ---------- */
   .setup{display:none;margin-top:26px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:24px}
@@ -1164,9 +1177,23 @@ function renderScores(){
   const add=document.createElement("div");
   add.className="add-player";
   add.innerHTML=`<span class="pl">＋</span>Add player`;
-  add.onclick=()=>{
-    const name=prompt("Player / team name:");
+  function commitPlayer(name){
     if(name&&name.trim()){ state.players.push({name:name.trim(),score:0}); save(); renderScores(); }
+  }
+  add.onclick=()=>{
+    // inline name entry (no native prompt — that gets suppressed when screen-sharing)
+    add.classList.add("editing");
+    add.innerHTML=`<input class="add-player-input" type="text" placeholder="Player / team name" maxlength="40" autocomplete="off">
+      <div class="add-player-actions"><button type="button" class="add-ok">Add</button><button type="button" class="add-cancel">Cancel</button></div>`;
+    const input=add.querySelector(".add-player-input");
+    input.focus();
+    const ok=()=>commitPlayer(input.value);
+    add.querySelector(".add-ok").onclick=(e)=>{ e.stopPropagation(); ok(); };
+    add.querySelector(".add-cancel").onclick=(e)=>{ e.stopPropagation(); renderScores(); };
+    input.onkeydown=(e)=>{
+      if(e.key==="Enter"){ e.preventDefault(); ok(); }
+      else if(e.key==="Escape"){ e.preventDefault(); renderScores(); }
+    };
   };
   box.appendChild(add);
 
