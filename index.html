@@ -318,6 +318,35 @@
 
   .setup-actions{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
 
+  /* ---------- INTRO + ROUND REVEAL OVERLAYS ---------- */
+  .intro-screen,.round-reveal{
+    position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:24px;
+    background:radial-gradient(1200px 600px at 50% 20%,rgba(122,92,255,.22),transparent),var(--ink)}
+  .round-reveal{background:radial-gradient(1000px 500px at 50% 30%,rgba(255,46,136,.18),transparent),rgba(10,7,16,.97)}
+  .intro-screen[hidden],.round-reveal[hidden]{display:none}
+  .intro-inner,.round-reveal-inner{text-align:center;max-width:640px;animation:introUp .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes introUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  .intro-eyebrow{letter-spacing:.35em;text-transform:uppercase;font-size:12px;font-weight:700;color:var(--cyber);margin-bottom:18px}
+  .intro-title{font-size:clamp(38px,8vw,76px);line-height:1;font-weight:800;
+    background:linear-gradient(120deg,var(--hot),var(--violet) 55%,var(--cyber));
+    -webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:16px}
+  .intro-title .beat{-webkit-text-fill-color:var(--lime);color:var(--lime)}
+  .intro-tag{color:var(--muted);font-size:17px;margin-bottom:34px}
+  .intro-start,.rr-start{
+    border:none;cursor:pointer;font:inherit;font-weight:800;font-size:18px;padding:16px 40px;border-radius:16px;
+    background:linear-gradient(120deg,var(--hot),var(--violet));color:#fff;
+    box-shadow:0 12px 34px rgba(122,92,255,.45);transition:transform .15s,box-shadow .15s}
+  .intro-start:hover,.rr-start:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(122,92,255,.55)}
+  .intro-start:active,.rr-start:active{transform:translateY(0)}
+  .rr-kicker{letter-spacing:.4em;text-transform:uppercase;font-size:14px;font-weight:800;color:var(--cyber);margin-bottom:10px}
+  .rr-emo{font-size:clamp(64px,14vw,120px);line-height:1;margin-bottom:8px;filter:drop-shadow(0 8px 24px rgba(0,0,0,.5))}
+  .rr-name{font-size:clamp(30px,6vw,56px);font-weight:800;color:var(--paper);margin-bottom:30px}
+  /* locked (unrevealed) rail chips: number shows, identity hidden */
+  .chip.locked{color:var(--muted);border-style:dashed;cursor:default}
+  .chip.locked:hover{transform:none;border-color:var(--line)}
+  .chip.locked .emo{filter:grayscale(1) opacity(.5)}
+  .chip.locked .rname{letter-spacing:.15em}
+
   footer{text-align:center;margin-top:44px;color:var(--muted);font-size:12px;letter-spacing:.05em}
 
   /* modal-ish input */
@@ -385,6 +414,26 @@
 <body>
 <div class="grain"></div>
 <div class="wrap">
+
+  <!-- INTRO OVERLAY (spoiler-free open screen) -->
+  <div class="intro-screen" id="introScreen" hidden>
+    <div class="intro-inner">
+      <div class="intro-eyebrow">Screen-share edition</div>
+      <h1 class="intro-title">K-POP <span class="beat">♪</span> GAME NIGHT</h1>
+      <p class="intro-tag">Six rounds. One winner. No spoilers.</p>
+      <button class="intro-start" id="introStart">Let's play →</button>
+    </div>
+  </div>
+
+  <!-- ROUND REVEAL OVERLAY (spoiler-free transition) -->
+  <div class="round-reveal" id="roundReveal" hidden>
+    <div class="round-reveal-inner">
+      <div class="rr-kicker" id="rrKicker">Round</div>
+      <div class="rr-emo" id="rrEmo">🎬</div>
+      <div class="rr-name" id="rrName">Round</div>
+      <button class="rr-start" id="rrStart">Tap to start →</button>
+    </div>
+  </div>
 
   <header>
     <div class="brand">
@@ -550,11 +599,13 @@ const SAMPLE = {
 };
 
 /* ============ STATE ============ */
-function defaultState(){ return { clips:{}, players:[], counts:{}, disabled:{}, cur:{round:0, clip:0} }; }
+function defaultState(){ return { clips:{}, players:[], counts:{}, disabled:{}, revealed:{}, spoilerFree:true, cur:{round:0, clip:0} }; }
 function ensureStructure(s){
   if(!s.clips) s.clips={};
   if(!s.counts) s.counts={};
   if(!s.disabled) s.disabled={};
+  if(!s.revealed) s.revealed={};                       // rounds whose identity has been shown
+  if(typeof s.spoilerFree!=="boolean") s.spoilerFree=true; // hide upcoming rounds by default
   // clip arrays follow the saved (or default) slot count for each round
   ROUNDS.forEach(r=>{
     const n=clipCount(r,s);
@@ -655,6 +706,47 @@ function toast(msg){
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1900);
 }
 
+/* ============ SPOILER-FREE HELPERS ============ */
+// has this round's identity been shown yet? current round + earlier rounds always are.
+function isRevealed(r, idx){
+  if(!state.spoilerFree) return true;           // spoiler-free off: everything visible
+  if(idx===state.cur.round) return true;        // the round you're on
+  if(idx<state.cur.round) return true;          // rounds already played
+  return !!(state.revealed && state.revealed[r.key]);
+}
+// mark a round revealed (once its card is dismissed) so it never re-locks
+function markRevealed(r){ if(!state.revealed) state.revealed={}; state.revealed[r.key]=true; }
+// should the current round be gated behind its reveal card? (spoiler-free, and
+// this round's identity hasn't been shown via the card yet). isRevealed() treats
+// the current round as always-revealed for the RAIL, so the stage needs its own gate.
+function needsReveal(r){
+  if(!state.spoilerFree) return false;
+  return !(state.revealed && state.revealed[r.key]);
+}
+
+// show the "Round N — Name" reveal card over the stage; resolves when tapped
+function showRoundReveal(r, shownNum){
+  const ov=document.getElementById("roundReveal");
+  document.getElementById("rrKicker").textContent="Round "+shownNum;
+  document.getElementById("rrEmo").textContent=r.emo;
+  document.getElementById("rrName").textContent=r.name;
+  ov.hidden=false;
+  const inner=ov.querySelector(".round-reveal-inner");
+  inner.style.animation="none"; void inner.offsetWidth; inner.style.animation=""; // replay entrance
+}
+function hideRoundReveal(){ document.getElementById("roundReveal").hidden=true; }
+// the sequential (enabled-only) number shown on the rail for a given round index
+function railNumberFor(idx){
+  let n=0; for(let i=0;i<=idx;i++){ if(isEnabled(ROUNDS[i])) n++; } return n;
+}
+// intro overlay: shown once per page load when spoiler-free is on
+let introDismissed=false;
+function maybeShowIntro(){
+  const ov=document.getElementById("introScreen");
+  if(state.spoilerFree && !introDismissed){ ov.hidden=false; }
+  else { ov.hidden=true; }
+}
+
 /* ============ RAIL ============ */
 function renderRail(){
   const rail=document.getElementById("rail");
@@ -665,9 +757,15 @@ function renderRail(){
     shown++;
     const filled = state.clips[r.key].some(c=>c.url || c.img1 || (c.a&&c.a[0]));
     const chip=document.createElement("div");
-    chip.className="chip"+(i===state.cur.round?" active":"")+(filled&&i!==state.cur.round?" done":"");
-    chip.innerHTML=`<span class="rnum">R${shown}</span><span class="emo">${r.emo}</span>${r.name}`;
-    chip.onclick=()=>{ state.cur={round:i,clip:0}; save(); renderAll(); };
+    const locked = !isRevealed(r,i);
+    chip.className="chip"+(i===state.cur.round?" active":"")+(filled&&i!==state.cur.round&&!locked?" done":"")+(locked?" locked":"");
+    if(locked){
+      // hide identity: show the number and a placeholder, no name/emoji
+      chip.innerHTML=`<span class="rnum">R${shown}</span><span class="emo">🔒</span><span class="rname">???</span>`;
+    } else {
+      chip.innerHTML=`<span class="rnum">R${shown}</span><span class="emo">${r.emo}</span><span class="rname">${r.name}</span>`;
+      chip.onclick=()=>{ state.cur={round:i,clip:0}; save(); renderAll(); };
+    }
     rail.appendChild(chip);
   });
 }
@@ -676,6 +774,14 @@ function renderRail(){
 function renderStage(){
   const r=ROUNDS[state.cur.round];
   const clip=state.clips[r.key][state.cur.clip];
+  // spoiler-free: gate an unrevealed round behind its reveal card. Suppressed while
+  // the intro overlay is still up so the two don't stack; the intro's dismiss re-renders.
+  const introUp = state.spoilerFree && !introDismissed;
+  if(needsReveal(r) && !introUp){
+    showRoundReveal(r, railNumberFor(state.cur.round));
+  } else {
+    hideRoundReveal();
+  }
   document.getElementById("roundEmo").textContent=r.emo;
   document.getElementById("roundName").textContent=r.name;
   document.getElementById("roundSub").textContent=r.sub;
@@ -1740,6 +1846,20 @@ document.getElementById("playBtn").onclick=()=>{
   } else { playClip(); }
 };
 document.getElementById("revealBtn").onclick=reveal;
+// intro overlay: dismiss the open screen and drop into the stage (which itself
+// gates the current round behind its reveal card if it's still unrevealed)
+document.getElementById("introStart").onclick=()=>{
+  introDismissed=true;
+  document.getElementById("introScreen").hidden=true;
+  renderAll();
+};
+// round-reveal card: mark this round revealed so it never re-locks, then re-render
+document.getElementById("rrStart").onclick=()=>{
+  markRevealed(ROUNDS[state.cur.round]);
+  save();
+  hideRoundReveal();
+  renderAll();
+};
 // presets just SELECT the snippet length and stay highlighted
 document.querySelectorAll(".btn.snip.preset").forEach(b=>{
   b.onclick=()=>{
@@ -1843,6 +1963,7 @@ bootStorage().then(()=>{
     state.players=[{name:"Team 1",score:0},{name:"Team 2",score:0}];
     save(); renderScores();
   }
+  maybeShowIntro();
 });
 </script>
 </body>
