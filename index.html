@@ -482,7 +482,8 @@ const ROUNDS = [
     audioOnly:true, count:10,
     fields:["Song","Group (bonus)"]},
   {key:"lyric", emo:"🎤", name:"Finish the Lyric",
-    sub:"Read the line out loud, let them shout the rest, then play the video.",
+    sub:"Play the lead-in, it pauses on the gap, they shout the rest, then reveal plays the line.",
+    hasStart:true, hasLeadIn:true,
     fields:["Lyric prompt (shown on screen)","Answer / full line"]},
   {key:"emoji", emo:"🎨", name:"Emoji Song Challenge",
     sub:"Emoji clues on screen. Guess the song AND the group, then reveal the video.",
@@ -646,11 +647,13 @@ function renderStage(){
   const player=document.getElementById("player");
   // fully tear down any existing YouTube player so the next Play builds a fresh one
   clearTimeout(snipTimer);
+  clearTimeout(lyricLeadTimer);
   clearFinale();
   clearWinner();
   if(ytPlayer){ try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
   ytReady=false; ytBuilding=false;
   emojiHintPlaying=false;
+  lyricLeadPlaying=false;
   window._ytReadyQueue=null;
   // clear everything except mask
   [...player.querySelectorAll(".yt,.placeholder,.prompt-card,.idol-photo,.audio-cover,.finale-stage,.winner-stage")].forEach(e=>e.remove());
@@ -730,6 +733,12 @@ function renderStage(){
     playBtn.style.display="";
     playBtn.disabled = !clip.url;
     playBtn.textContent = "🎧 Play chorus (hint)";
+  } else if(r.hasLeadIn){
+    // lyric: play the lead-in that auto-pauses on the gap
+    revealBtn.style.display="";
+    playBtn.style.display="";
+    playBtn.disabled = !clip.url;
+    playBtn.textContent = "▶ Play lead-in";
   } else if(r.photoMode){
     revealBtn.style.display="";
     playBtn.style.display="none";
@@ -753,7 +762,7 @@ function renderStage(){
   });
 }
 
-let ytPlayer=null, ytReady=false, snipTimer=null, revealed=false, clipStarted=false, snipDuration=1, isPlaying=false, snipStart=0, ytBuilding=false, emojiHintPlaying=false;
+let ytPlayer=null, ytReady=false, snipTimer=null, revealed=false, clipStarted=false, snipDuration=1, isPlaying=false, snipStart=0, ytBuilding=false, emojiHintPlaying=false, lyricLeadTimer=null, lyricLeadPlaying=false;
 function playClip(onReadyExtra){
   const r=ROUNDS[state.cur.round];
   const clip=state.clips[r.key][state.cur.clip];
@@ -885,6 +894,7 @@ function reveal(){
   const r=ROUNDS[state.cur.round];
   const clip=state.clips[r.key][state.cur.clip];
   clearTimeout(snipTimer);
+  clearTimeout(lyricLeadTimer); // stop the lead-in auto-pause; we're about to play the full line
   // drop the mask so title/full video shows
   document.getElementById("chromeMask").classList.add("hidden");
   // uncover audio-only rounds so the video becomes visible
@@ -910,6 +920,14 @@ function reveal(){
     sub  = (clip.a&&clip.a[2])?clip.a[2]:"";
     // play the video (from chorus start) on reveal
     playEmojiVideo(clip);
+  }
+  else if(r.key==="lyric"){
+    main = (clip.a&&clip.a[1])?clip.a[1]:"(add answer in setup)";
+    // resume the lead-in audio so they hear the actual line they were guessing
+    if(ytPlayer && ytReady){
+      try{ ytPlayer.unMute(); ytPlayer.setVolume(100); ytPlayer.playVideo(); }catch(e){}
+      lyricLeadPlaying=false;
+    }
   }
   else if(isText){ main = (clip.a&&clip.a[1])?clip.a[1]:"(add answer in setup)"; }
   else if(r.key==="onesec"){ main=(clip.a&&clip.a[0])?clip.a[0]:"(add song in setup)"; sub=(clip.a&&clip.a[1])?("Group: "+clip.a[1]):""; }
@@ -988,6 +1006,76 @@ function playEmojiChorus(){
           emojiHintPlaying=true; btn.textContent="⏸ Pause chorus";
         },
         onError:()=>{ ytBuilding=false; emojiHintPlaying=false; btn.textContent="🎧 Play chorus (hint)"; toast("Couldn't play this clip"); }
+      }
+    });
+  };
+  if(window.YT && window.YT.Player){ build(); } else { window._ytReadyQueue=build; }
+}
+
+// lyric round: play a short lead-in from `start` for `lead` seconds, then auto-pause on the gap.
+// audio only — the lyric prompt card stays on screen while they shout the missing words.
+function leadSeconds(clip){ const n=parseInt(clip.lead,10); return (n>0)?n:6; } // default 6s
+function playLyricLeadIn(){
+  const r=ROUNDS[state.cur.round];
+  const clip=state.clips[r.key][state.cur.clip];
+  const id=ytId(clip.url);
+  if(!id){ toast("Add a YouTube link for this clip first"); return; }
+  const start=parseStart(clip.start);
+  const dur=leadSeconds(clip);
+  const btn=document.getElementById("playBtn");
+
+  // stop the lead-in exactly `dur` seconds of ACTUAL playback past `start`.
+  // polling getCurrentTime beats a wall-clock timer: buffering/autoplay delay
+  // doesn't eat into the lead-in, so the pause always lands on the same lyric.
+  const beginLeadIn=(p)=>{
+    clearTimeout(lyricLeadTimer);
+    lyricLeadPlaying=true; btn.textContent="⏸ Pause";
+    const target=start+dur;
+    const tick=()=>{
+      let t=start;
+      try{ t=p.getCurrentTime(); }catch(e){}
+      if(t>=target){
+        try{ p.pauseVideo(); }catch(e){}
+        lyricLeadPlaying=false; btn.textContent="↻ Replay lead-in";
+        return;
+      }
+      lyricLeadTimer=setTimeout(tick, 120);
+    };
+    tick();
+  };
+
+  // toggle: if the lead-in is currently playing, pause it now
+  if(lyricLeadPlaying && ytPlayer && ytReady){
+    clearTimeout(lyricLeadTimer);
+    try{ ytPlayer.pauseVideo(); }catch(e){}
+    lyricLeadPlaying=false; btn.textContent="↻ Replay lead-in";
+    return;
+  }
+  // player already built for this clip: just replay the lead-in from the start point
+  if(ytPlayer && ytReady){
+    try{ ytPlayer.seekTo(start,true); ytPlayer.unMute(); ytPlayer.setVolume(100); ytPlayer.playVideo(); }catch(e){}
+    beginLeadIn(ytPlayer);
+    return;
+  }
+  // build a hidden audio-only player (keep the lyric prompt on screen)
+  const player=document.getElementById("player");
+  if(ytPlayer){ try{ytPlayer.destroy();}catch(e){} ytPlayer=null; }
+  ytReady=false; ytBuilding=true; window._ytReadyQueue=null;
+  const wrap=document.createElement("div"); wrap.className="yt";
+  wrap.style.position="absolute"; wrap.style.opacity="0"; wrap.style.pointerEvents="none"; // hidden; audio only
+  const host=document.createElement("div"); host.id="ytHost";
+  wrap.appendChild(host); player.appendChild(wrap);
+  const build=()=>{
+    ytPlayer=new YT.Player("ytHost",{
+      videoId:id, host:"https://www.youtube.com",
+      playerVars:{autoplay:1, mute:1, start:start, rel:0, modestbranding:1, iv_load_policy:3, playsinline:1, controls:1, origin:location.origin},
+      events:{
+        onReady:(e)=>{ ytReady=true; ytBuilding=false;
+          e.target.seekTo(start,true); e.target.playVideo();
+          setTimeout(()=>{ try{e.target.unMute(); e.target.setVolume(100);}catch(err){} },350);
+          beginLeadIn(e.target);
+        },
+        onError:()=>{ ytBuilding=false; lyricLeadPlaying=false; btn.textContent="▶ Play lead-in"; toast("Couldn't play this clip"); }
       }
     });
   };
@@ -1441,9 +1529,13 @@ function renderSetup(){
           restFields=`<input data-r="${r.key}" data-i="${i}" data-f="0" placeholder="${r.fields[0]}" value="${esc(clip.a&&clip.a[0])}">`;
         }
       }
-      // optional chorus start-time field
+      // optional start-time field (lead-in start for lyric, chorus start for emoji)
       const startField = r.hasStart
-        ? `<input class="start-input" data-r="${r.key}" data-i="${i}" data-start="1" placeholder="Start video at (e.g. 0:48 or 48)" value="${esc(clip.start)}">`
+        ? `<input class="start-input" data-r="${r.key}" data-i="${i}" data-start="1" placeholder="${r.hasLeadIn?"Lead-in starts at (e.g. 0:42 or 42)":"Start video at (e.g. 0:48 or 48)"}" value="${esc(clip.start)}">`
+        : "";
+      // optional lead-in length field (lyric round only): how many seconds to play before auto-pausing
+      const leadField = r.hasLeadIn
+        ? `<input class="start-input" data-r="${r.key}" data-i="${i}" data-lead="1" type="number" min="1" max="30" placeholder="Lead-in length in seconds (default 6)" value="${esc(clip.lead)}">`
         : "";
       const urlField=`<input data-r="${r.key}" data-i="${i}" data-url="1" placeholder="YouTube link or video ID" value="${esc(clip.url)}">`;
       row.innerHTML=`
@@ -1451,7 +1543,8 @@ function renderSetup(){
         ${promptFirst}
         ${urlField}
         ${restFields}
-        ${startField}`;
+        ${startField}
+        ${leadField}`;
       det.appendChild(row);
     }
     box.appendChild(det);
@@ -1464,6 +1557,7 @@ function renderSetup(){
       const clip=state.clips[rk][i];
       if(inp.dataset.url){ clip.url=inp.value; }
       else if(inp.dataset.start){ clip.start=inp.value; }
+      else if(inp.dataset.lead){ clip.lead=inp.value; }
       else { const f=+inp.dataset.f; clip.a[f]=inp.value; }
       save();
       renderRail();
@@ -1559,6 +1653,7 @@ document.getElementById("playBtn").onclick=()=>{
   if(r.finaleMode){ startFinale(); return; }
   if(r.winnerMode){ startWinner(); return; }
   if(r.key==="emoji"){ playEmojiChorus(); return; }
+  if(r.hasLeadIn){ playLyricLeadIn(); return; }
   if(r.audioOnly){
     if(isPlaying){ pausePlayer(); return; }  // toggle pause
     clipStarted=true;
